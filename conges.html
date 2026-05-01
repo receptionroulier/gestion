@@ -208,8 +208,10 @@ function renderAbsences() {
     const bodyTable = document.getElementById('abs-body-table');
     if (!bodyTable) return;
 
+    console.log('[renderAbsences] Mois:', monthLabel, '| Jours:', daysInMonth);
+
     if (state.staff.length === 0) {
-        bodyTable.innerHTML = '<thead></thead><tbody><tr><td colspan="32" style="padding:20px;text-align:center;color:var(--text3)">Aucune donnée</td></tr></tbody>';
+        bodyTable.innerHTML = '<thead></thead><tbody><tr><td colspan="' + (daysInMonth + 1) + '" style="padding:20px;text-align:center;color:var(--text3)">Aucune donnée</td></tr></tbody>';
         return;
     }
 
@@ -220,11 +222,13 @@ function renderAbsences() {
     const staffSorted = [...order].map(id => state.staff.find(w => w.id === id)).filter(Boolean);
     state.staff.forEach(w => { if (!staffSorted.find(s => s.id === w.id)) staffSorted.push(w); });
 
-    let colgroup = `<colgroup><col style="width:${MEMBER_W};min-width:${MEMBER_W};max-width:${MEMBER_W};">`;
-    for (let i = 1; i <= daysInMonth; i++) colgroup += `<col style="width:${DAY_W};min-width:${DAY_W};">`;
+    let colgroup = '<colgroup><col style="width:' + MEMBER_W + ';min-width:' + MEMBER_W + ';max-width:' + MEMBER_W + '">';
+    for (let i = 1; i <= daysInMonth; i++) {
+        colgroup += '<col style="width:' + DAY_W + ';min-width:' + DAY_W + ';max-width:' + DAY_W + '">';
+    }
     colgroup += '</colgroup>';
 
-    let headerRow = `<tr><th class="member-cell">Personnel</th>`;
+    let headerRow = '<tr><th class="member-cell">Personnel</th>';
     for (let i = 1; i <= daysInMonth; i++) {
         const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
         const dateISO = fmtISO(d);
@@ -236,7 +240,7 @@ function renderAbsences() {
         const isRed = isSun || isFerie;
         const bgStyle = isRed ? 'background-image:linear-gradient(rgba(255,77,109,0.18),rgba(255,77,109,0.18));' : isSat ? 'background-image:linear-gradient(rgba(59,143,255,0.18),rgba(59,143,255,0.18));' : '';
         const vacStyle = isVacances ? 'box-shadow:inset 0 3px 0 var(--red);' : '';
-        headerRow += `<th class="day-th" style="${bgStyle}${vacStyle}">${i}<br><span style="font-weight:400;font-size:0.55rem">${dow}</span></th>`;
+        headerRow += '<th class="day-th" style="' + bgStyle + vacStyle + '">' + i + '<br><span style="font-weight:400;font-size:0.55rem">' + dow + '</span></th>';
     }
     headerRow += '</tr>';
 
@@ -246,31 +250,25 @@ function renderAbsences() {
         const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
         const borderColor = colorKey ? colorMap[colorKey] : 'var(--border2)';
 
-        const memberCell = `
-          <td class="member-cell">
-            <div style="padding:4px 6px;border-radius:6px;border:1px solid ${colorKey ? borderColor : 'var(--border2)'};text-align:left;">
-              <div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div>
-              <div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div>
-            </div>
-          </td>`;
+        const memberCell = '<td class="member-cell"><div style="padding:4px 6px;border-radius:6px;border:1px solid ' + (colorKey ? borderColor : 'var(--border2)') + ';text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + w.lastName + ' ' + w.firstName + '</div><div style="font-size:0.58rem;color:var(--text3);font-family:\'DM Mono\',monospace;">' + (w.matricule || '—') + '</div></div></td>';
 
         let dayCells = '';
         for (let i = 1; i <= daysInMonth; i++) {
-            const dateISO = fmtISO(new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i));
-            const code = state.absences[w.id]?.[dateISO] || '';
             const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+            const dateISO = fmtISO(d);
+            const code = state.absences[w.id]?.[dateISO] || '';
             const isSat = d.getDay() === 6;
             const isSun = d.getDay() === 0;
             const isFerie = !!state.holidays[dateISO];
             const colorClass = isSun || isFerie ? ' day-sun' : isSat ? ' day-sat' : '';
             const firstLast = i === 1 ? ' day-first' : i === daysInMonth ? ' day-last' : '';
-            dayCells += `<td class="day-cell${colorClass}${firstLast}">${code ? `<span class="abs-code">${code}</span>` : ''}</td>`;
+            dayCells += '<td class="day-cell' + colorClass + firstLast + '">' + (code ? '<span class="abs-code">' + code + '</span>' : '') + '</td>';
         }
         const rowColor = colorKey ? borderColor : 'var(--border2)';
-        rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
+        rows += '<tr style="--row-color:' + rowColor + ';">' + memberCell + dayCells + '</tr><tr class="abs-spacer"><td colspan="' + (daysInMonth + 1) + '"></td></tr>';
     });
 
-    bodyTable.innerHTML = colgroup + `<thead>${headerRow}</thead><tbody>${rows}</tbody>`;
+    bodyTable.innerHTML = colgroup + '<thead>' + headerRow + '</thead><tbody>' + rows + '</tbody>';
 }
 
 // ── PDF ABSENCES ──
@@ -295,7 +293,7 @@ function printAbsPDF() {
     const isSun = d.getDay() === 0;
     const isFerie = !!state.holidays[fmtISO(d)];
     const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#f5f5f5';
-    thDays += `<th style="background:${bg};width:22px;font-size:8px;padding:2px 0;">${i}<br><span style="font-weight:400;font-size:7px">${dow}</span></th>`;
+    thDays += '<th style="background:' + bg + ';width:22px;font-size:8px;padding:2px 0;">' + i + '<br><span style="font-weight:400;font-size:7px">' + dow + '</span></th>';
   }
 
   let bodyRows = '';
@@ -311,33 +309,12 @@ function printAbsPDF() {
       const isSun = d.getDay() === 0;
       const isFerie = !!state.holidays[dateISO];
       const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#fff';
-      tds += `<td style="background:${bg};text-align:center;font-size:8px;font-weight:700;color:#d04000;padding:0;">${code}</td>`;
+      tds += '<td style="background:' + bg + ';text-align:center;font-size:8px;font-weight:700;color:#d04000;padding:0;">' + code + '</td>';
     }
-    bodyRows += `<tr>
-      <td style="border-left:3px solid ${borderColor};padding:3px 6px;white-space:nowrap;">
-        <div style="font-size:9px;font-weight:700;">${w.lastName} ${w.firstName}</div>
-        <div style="font-size:7px;color:#888;font-family:monospace;">${w.matricule || ''}</div>
-      </td>${tds}</tr>`;
+    bodyRows += '<tr><td style="border-left:3px solid ' + borderColor + ';padding:3px 6px;white-space:nowrap;"><div style="font-size:9px;font-weight:700;">' + w.lastName + ' ' + w.firstName + '</div><div style="font-size:7px;color:#888;font-family:monospace;">' + (w.matricule || '') + '</div></td>' + tds + '</tr>';
   });
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Absences – ${monthLabel}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 10mm; }
-    h2 { font-size: 13px; margin-bottom: 8px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; }
-    th { text-align: center; }
-    @media print { @page { size: A4 landscape; margin: 8mm; } }
-  </style>
-  </head><body>
-  <h2>Suivi des absences – ${monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}</h2>
-  <table>
-    <thead><tr><th style="text-align:left;padding:3px 6px;font-size:9px;background:#f5f5f5;white-space:nowrap;">Personnel</th>${thDays}</tr></thead>
-    <tbody>${bodyRows}</tbody>
-  </table>
-  <script>window.onload=()=>{window.print();}<\/script>
-  </body></html>`;
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Absences – ' + monthLabel + '</title><style>body{font-family:Arial,sans-serif;margin:10mm;}h2{font-size:13px;margin-bottom:8px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;}th{text-align:center;}@media print{@page{size:A4 landscape;margin:8mm;}}</style></head><body><h2>Suivi des absences – ' + monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) + '</h2><table><thead><tr><th style="text-align:left;padding:3px 6px;font-size:9px;background:#f5f5f5;white-space:nowrap;">Personnel</th>' + thDays + '</tr></thead><tbody>' + bodyRows + '</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>';
 
   const w2 = window.open('', '_blank');
   w2.document.write(html);
@@ -354,18 +331,13 @@ function renderMonthPicker() {
   const curM = state.absMonth.getMonth();
   const curY = state.absMonth.getFullYear();
 
-  grid.innerHTML = MONTHS_FR.map((name, i) => {
+  grid.innerHTML = MONTHS_FR.map(function(name, i) {
     const isCurrent = i === curM && _mpYear === curY;
-    return `<div data-m="${i}" style="
-      font-size:0.7rem;font-weight:700;text-align:center;padding:5px 4px;border-radius:6px;
-      cursor:pointer;transition:all .1s;
-      background:${isCurrent ? 'var(--accent)' : 'transparent'};
-      color:${isCurrent ? '#000' : 'var(--text2)'};
-    " onmouseover="if(!${isCurrent})this.style.background='var(--surface2)'" onmouseout="if(!${isCurrent})this.style.background='transparent'">${name}</div>`;
+    return '<div data-m="' + i + '" style="font-size:0.7rem;font-weight:700;text-align:center;padding:5px 4px;border-radius:6px;cursor:pointer;transition:all .1s;background:' + (isCurrent ? 'var(--accent)' : 'transparent') + ';color:' + (isCurrent ? '#000' : 'var(--text2)') + ';" onmouseover="if(!' + isCurrent + ')this.style.background=\'var(--surface2)\'" onmouseout="if(!' + isCurrent + ')this.style.background=\'transparent\'">' + name + '</div>';
   }).join('');
 
-  grid.querySelectorAll('[data-m]').forEach(el => {
-    el.addEventListener('click', async e => {
+  grid.querySelectorAll('[data-m]').forEach(function(el) {
+    el.addEventListener('click', async function(e) {
       e.stopPropagation();
       state.absMonth = new Date(_mpYear, parseInt(el.dataset.m), 1);
       closeMonthPicker();
@@ -388,6 +360,7 @@ function closeMonthPicker() {
 
 // ── LOAD MONTH DATA ──
 async function loadMonthData() {
+  console.log('[loadMonthData] Mois chargé:', state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
   await Promise.all([
     fetchSchoolHolidays(state.absMonth),
     loadAbsencesForMonth(state.absMonth)
@@ -404,24 +377,24 @@ async function initApp() {
 }
 
 // ── EVENT LISTENERS ──
-document.getElementById('header-month-label').addEventListener('click', e => {
+document.getElementById('header-month-label').addEventListener('click', function(e) {
   e.stopPropagation();
   const popup = document.getElementById('month-picker-popup');
   if (popup && popup.style.display === 'none') openMonthPicker();
   else closeMonthPicker();
 });
-document.getElementById('mp-prev-year').addEventListener('click', e => {
+document.getElementById('mp-prev-year').addEventListener('click', function(e) {
   e.stopPropagation(); _mpYear--; renderMonthPicker();
 });
-document.getElementById('mp-next-year').addEventListener('click', e => {
+document.getElementById('mp-next-year').addEventListener('click', function(e) {
   e.stopPropagation(); _mpYear++; renderMonthPicker();
 });
-document.addEventListener('click', () => closeMonthPicker());
+document.addEventListener('click', function() { closeMonthPicker(); });
 
-document.getElementById('btn-settings').addEventListener('click', () => showConfigModal());
+document.getElementById('btn-settings').addEventListener('click', function() { showConfigModal(); });
 document.getElementById('cfg-overlay').addEventListener('click', closeCfgSidebar);
-document.querySelectorAll('.cfg-module-btn').forEach(btn => {
-  btn.addEventListener('click', e => {
+document.querySelectorAll('.cfg-module-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
     e.stopPropagation();
     const mod = btn.dataset.module;
     if (_cfgActiveModule === mod) { closeCfgSubpanel(); }
@@ -429,13 +402,19 @@ document.querySelectorAll('.cfg-module-btn').forEach(btn => {
   });
 });
 document.getElementById('btn-print-abs').addEventListener('click', printAbsPDF);
-document.getElementById('btn-abs-prev').addEventListener('click', async () => {
-    state.absMonth.setMonth(state.absMonth.getMonth() - 1);
+
+// ✅ CORRECTION : Créer un nouveau Date au lieu de modifier l'existant
+document.getElementById('btn-abs-prev').addEventListener('click', async function() {
+    const newMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() - 1, 1);
+    state.absMonth = newMonth;
+    console.log('[btn-abs-prev] Nouveau mois:', state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
     await loadMonthData();
     renderAbsences();
 });
-document.getElementById('btn-abs-next').addEventListener('click', async () => {
-    state.absMonth.setMonth(state.absMonth.getMonth() + 1);
+document.getElementById('btn-abs-next').addEventListener('click', async function() {
+    const newMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 1);
+    state.absMonth = newMonth;
+    console.log('[btn-abs-next] Nouveau mois:', state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
     await loadMonthData();
     renderAbsences();
 });
