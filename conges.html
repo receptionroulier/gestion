@@ -181,19 +181,16 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 .cm-close { margin-left: auto; background: none; border: none; color: var(--text3); font-size: 1.1rem; cursor: pointer; padding: 2px 6px; border-radius: 5px; transition: color .12s; }
 .cm-close:hover { color: var(--red); }
 .cm-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
-/* Type selector */
-.cm-types { display: flex; align-items: center; gap: 10px; }
-.cm-type-select {
-  flex: 1; background: var(--surface2); border: 1px solid var(--border2);
-  color: var(--text); border-radius: 8px; padding: 7px 12px;
-  font-size: 0.74rem; font-weight: 700; font-family: inherit;
-  cursor: pointer; outline: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a8fa8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center;
-  padding-right: 30px;
+/* Type selector — pills custom */
+.cm-types { display: flex; flex-wrap: wrap; gap: 5px; }
+.cm-type-pill {
+  padding: 4px 10px; border-radius: 20px; cursor: pointer; font-size: 0.68rem;
+  font-weight: 700; font-family: inherit; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text2);
+  transition: all .12s; white-space: nowrap; line-height: 1.4;
 }
-.cm-type-select:focus { border-color: var(--accent); }
-.cm-type-select option { background: #1a2130; color: var(--text); }
+.cm-type-pill:hover { border-color: var(--accent); color: var(--text); }
+.cm-type-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
 /* Mini calendar dans modale */
 .cm-cal-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .cm-cal-nav-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; border-radius: 5px; padding: 3px 9px; font-size: 0.9rem; transition: all .12s; }
@@ -205,24 +202,26 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 }
 .cm-day-hdr { font-size: 0.52rem; font-weight: 700; color: var(--text3); text-align: center; padding: 1px 0; }
 .cm-day-cell {
-  text-align: center; border-radius: 4px; padding: 3px 0;
+  text-align: center; border-radius: 4px;
   font-size: 0.6rem; font-weight: 700; cursor: pointer;
   transition: background .1s, color .1s;
-  min-width: 24px; position: relative;
-  border: 1px solid transparent;
+  position: relative; border: 1px solid transparent;
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center; flex-direction: column;
 }
 .cm-day-cell.sun, .cm-day-cell.ferie { background: rgba(255,77,109,0.15); color: var(--red); }
 .cm-day-cell.sat { background: rgba(59,143,255,0.15); color: var(--blue); }
 .cm-day-cell.normal { color: var(--text2); }
 .cm-day-cell:hover:not(.disabled):not(.api-occupied) { border-color: var(--accent); color: var(--text); }
-/* selected-start : seul jour cliqué — fond plein mais day-type visible sur hover */
-.cm-day-cell.selected-start { background: var(--accent) !important; color: #000 !important; border-color: var(--accent) !important; }
-/* selected-end : même chose */
-.cm-day-cell.selected-end { background: var(--accent) !important; color: #000 !important; border-color: var(--accent) !important; }
-/* in-range : semi-transparent pour voir le fond sam/dim/JF en dessous */
-.cm-day-cell.in-range { background: rgba(59,143,255,0.28) !important; border-color: rgba(59,143,255,0.45) !important; }
+/* start/end : même bleu transparent que in-range, légèrement plus opaque */
+.cm-day-cell.selected-start, .cm-day-cell.selected-end {
+  background: rgba(59,143,255,0.55) !important;
+  color: #fff !important;
+  border-color: rgba(59,143,255,0.8) !important;
+}
+/* in-range : semi-transparent */
+.cm-day-cell.in-range { background: rgba(59,143,255,0.28) !important; border-color: rgba(59,143,255,0.45) !important; color: var(--text) !important; }
 .cm-day-cell.in-range.sat { background: rgba(59,143,255,0.42) !important; }
-.cm-day-cell.in-range.sun, .cm-day-cell.in-range.ferie { background: rgba(59,143,255,0.22) rgba(255,77,109,0.18) !important; background: color-mix(in srgb, rgba(59,143,255,0.30) 50%, rgba(255,77,109,0.20) 50%) !important; border-color: rgba(255,77,109,0.45) !important; }
+.cm-day-cell.in-range.sun, .cm-day-cell.in-range.ferie { background: color-mix(in srgb, rgba(59,143,255,0.30) 50%, rgba(255,77,109,0.25) 50%) !important; border-color: rgba(255,77,109,0.4) !important; color: var(--text) !important; }
 .cm-day-cell.has-manual { background: rgba(140,150,165,0.25); color: #9ba8b8; }
 .cm-day-cell.has-api { background: rgba(255,107,53,0.30); color: var(--warn); }
 .cm-day-cell.api-occupied { cursor: not-allowed; opacity: 0.6; }
@@ -307,9 +306,9 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
   <div id="cfg-sidebar-title">⚙ Configuration</div>
   <div id="cfg-modules">
     <button class="cfg-module-btn" data-module="absences"><span class="cfg-module-icon">📋</span><span class="cfg-module-label">Membres</span><span class="cfg-module-arrow">›</span></button>
-    <button class="cfg-module-btn" data-module="congetypes"><span class="cfg-module-icon">🗂</span><span class="cfg-module-label">Types congés</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="personnel"><span class="cfg-module-icon">👥</span><span class="cfg-module-label">Groupes</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="mail"><span class="cfg-module-icon">✉</span><span class="cfg-module-label">Emails</span><span class="cfg-module-arrow">›</span></button>
+    <button class="cfg-module-btn" data-module="congetypes"><span class="cfg-module-icon">🗂</span><span class="cfg-module-label">Types congés</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="vacances"><span class="cfg-module-icon">🏖</span><span class="cfg-module-label">Vacances scolaires</span><span class="cfg-module-arrow">›</span></button>
   </div>
 </div>
@@ -333,11 +332,7 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
       <!-- Type sélection -->
       <div>
         <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;">Type de congés</div>
-        <div class="cm-types">
-          <select class="cm-type-select" id="cm-type-select" onchange="selectCmType(this.value)">
-            <option value="">— Choisir un type —</option>
-          </select>
-        </div>
+        <div class="cm-types" id="cm-type-pills"></div>
       </div>
       <!-- Calendrier navigable multi-mois -->
       <div>
@@ -441,9 +436,9 @@ function renderAbsences() {
     staffSorted.forEach(w => {
         const colorKey = state.config.workerColors?.[w.id];
         const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
-        const borderColor = colorKey ? colorMap[colorKey] : 'var(--border2)';
+        const borderColor = colorKey ? colorMap[colorKey] : 'rgba(255,255,255,0.20)';
 
-        const bColor = colorKey ? borderColor : 'var(--border2)';
+        const bColor = colorKey ? borderColor : 'rgba(255,255,255,0.20)';
         const memberCell = `<td class="member-cell"><div class="member-cell-wrap" style="padding:4px 6px;border-radius:6px;border:1px solid ${bColor};text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div><div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div><button class="btn-demande-conge" data-wid="${w.id}" title="Demande de congés">+</button></div></td>`;
 
         let dayCells = '';
@@ -462,7 +457,7 @@ function renderAbsences() {
             const codeSpan = code ? `<span class="${isManual ? 'abs-code-manual' : 'abs-code'}">${code}</span>` : '';
             dayCells += `<td class="day-cell${colorClass}${firstLast}">${codeSpan}</td>`;
         }
-        const rowColor = colorKey ? borderColor : 'var(--border2)';
+        const rowColor = colorKey ? borderColor : 'rgba(255,255,255,0.20)';
         rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
     });
 
@@ -758,20 +753,19 @@ window.closeCongeModal = closeCongeModal;
 
 function renderCmTypes() {
   const types = getCongeTypes();
-  const sel = document.getElementById('cm-type-select');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— Choisir un type —</option>';
+  const wrap = document.getElementById('cm-type-pills');
+  if (!wrap) return;
+  wrap.innerHTML = '';
   types.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t.code;
-    opt.textContent = t.label;
-    if (t.code === _cmSelectedType) opt.selected = true;
-    sel.appendChild(opt);
+    const btn = document.createElement('button');
+    btn.className = 'cm-type-pill' + (t.code === _cmSelectedType ? ' active' : '');
+    btn.textContent = t.label;
+    btn.onclick = () => selectCmType(t.code);
+    wrap.appendChild(btn);
   });
-  sel.value = _cmSelectedType || '';
 }
 function selectCmType(code) {
-  _cmSelectedType = code;
+  _cmSelectedType = code === _cmSelectedType ? null : code; // toggle
   renderCmTypes();
 }
 window.selectCmType = selectCmType;
