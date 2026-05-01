@@ -98,7 +98,7 @@ main { display: flex; flex: 1; min-height: 0; }
 #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 
 #view-week { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-#week-header-area { flex-shrink: 0; overflow: hidden; background: var(--bg); border-bottom: 2px solid var(--border2); }
+#week-header-area { flex-shrink: 0; overflow: hidden; background: var(--bg); border-bottom: 2px solid var(--border2); position: relative; z-index: 10; }
 #week-scroll-area { flex: 1; overflow: auto; min-height: 0; }
 .days-header { display: grid; gap: 4px; padding: 8px 0 4px; box-sizing: border-box; }
 .day-header-cell {
@@ -188,7 +188,7 @@ main { display: flex; flex: 1; min-height: 0; }
   color: var(--text2); font-size: 0.65rem; font-weight: 800;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity .15s, background .15s, color .15s, transform .15s;
-  z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   line-height: 1;
 }
 .day-header-cell:hover .btn-dup { opacity: 1; }
@@ -214,7 +214,11 @@ main { display: flex; flex: 1; min-height: 0; }
 .staff-item.has-wcolor     { border-color: var(--wc) !important; border-style: solid !important; }
 
 /* chip-modified déclaré APRÈS has-wcolor → orange prévaut toujours */
-.chip-modified { border-color: var(--warn) !important; box-shadow: inset 0 0 0 1px var(--warn) !important; }
+.chip-modified {
+  outline: 2px solid var(--warn) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(255,107,53,0.18) !important;
+}
 
 /* ── Config sidebar ── */
 #cfg-overlay { position: fixed; inset: 0; z-index: 800; display: none; }
@@ -320,8 +324,8 @@ main { display: flex; flex: 1; min-height: 0; }
     <div class="header-title">Gestion Affectation Parc Réception Roulier</div>
     <div class="header-row">
       <button class="btn btn-ghost" id="btn-settings" style="padding:5px 9px;">⚙️</button>
-      <button class="btn-view active" id="btn-view-week">Planning</button>
-      <button class="btn-view" id="btn-view-absences">Absences</button>
+      <button class="btn-view active" id="btn-view-week">Affectation</button>
+      <button class="btn-view" id="btn-view-absences">Congés</button>
       <div class="header-spacer"></div>
       <div class="week-nav" id="header-week-nav">
         <button id="btn-today">Aujourd'hui</button>
