@@ -42,7 +42,9 @@ let state = {
   planning: {},
   planningModified: {},
   slots: {},
-  absences: {},
+  absences: {},        // absences API (source RH)
+  manualConges: {},    // congés posés manuellement { workerId: { dateISO: code } }
+  mergedAbsences: {},  // fusion API + manuels (API prime)
   holidays: {},
   schoolHolidays: {},
   config: {
@@ -625,8 +627,62 @@ async function loadAbsencesForMonth(monthDate) {
     state.absences = parsed.absences;
     state.workerAssignmentMap = parsed.workerAssignmentMap;
 
+    // Fusion API + manuels : API prime
+    mergeAbsences();
+
     console.log('[loadAbsencesForMonth] Personnel:', state.staff.length, '| Absences chargées:', Object.keys(state.absences).length);
 }
+
+// ── MERGE ABSENCES API + MANUELLES ──
+function mergeAbsences() {
+    const merged = {};
+    // Copie d'abord les manuels
+    Object.entries(state.manualConges || {}).forEach(([wid, days]) => {
+        if (!merged[wid]) merged[wid] = {};
+        Object.entries(days).forEach(([date, code]) => {
+            merged[wid][date] = code;
+        });
+    });
+    // API prime sur tout
+    Object.entries(state.absences || {}).forEach(([wid, days]) => {
+        if (!merged[wid]) merged[wid] = {};
+        Object.entries(days).forEach(([date, code]) => {
+            merged[wid][date] = code; // écrase le manuel
+        });
+    });
+    state.mergedAbsences = merged;
+}
+window.mergeAbsences = mergeAbsences;
+
+// ── SAVE CONGES MANUELS (KV Cloudflare) ──
+async function saveCongesRemote() {
+    try {
+        const r = await fetch(PLAN_PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'saveConges', conges: state.manualConges })
+        });
+        const data = await r.json();
+        if (data.ok) showSyncStatus('saved');
+    } catch(e) { showSyncStatus('offline'); }
+}
+
+// ── LOAD CONGES MANUELS (KV Cloudflare) ──
+async function loadCongesRemote() {
+    try {
+        const r = await fetch(PLAN_PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'loadConges' })
+        });
+        const data = await r.json();
+        if (data.ok && data.conges) {
+            state.manualConges = data.conges;
+        }
+    } catch(e) { console.error('[loadCongesRemote]', e); }
+}
+window.saveCongesRemote = saveCongesRemote;
+window.loadCongesRemote = loadCongesRemote;
 
 // ── CONFIG SIDEBAR ──
 let _cfgActiveModule = null;
