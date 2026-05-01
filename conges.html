@@ -380,8 +380,8 @@ async function initApp() {
 document.getElementById('header-month-label').addEventListener('click', function(e) {
   e.stopPropagation();
   const popup = document.getElementById('month-picker-popup');
-  if (popup && popup.style.display === 'none') openMonthPicker();
-  else closeMonthPicker();
+  if (popup && popup.style.display === 'block') closeMonthPicker();
+  else openMonthPicker();
 });
 document.getElementById('mp-prev-year').addEventListener('click', function(e) {
   e.stopPropagation(); _mpYear--; renderMonthPicker();
