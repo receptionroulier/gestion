@@ -86,13 +86,13 @@ main { display: flex; flex: 1; min-height: 0; }
 .staff-badge.present { background: rgba(0,200,150,0.15);  color: var(--green); border-color: rgba(0,200,150,0.3); }
 #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 #view-week { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-#week-header-area { flex-shrink: 0; overflow: visible; background: var(--bg); border-bottom: 2px solid var(--border2); position: relative; z-index: 10; }
+#week-header-area { flex-shrink: 0; overflow: hidden; background: var(--bg); border-bottom: 2px solid var(--border2); position: relative; z-index: 10; }
 #week-scroll-area { flex: 1; overflow: auto; min-height: 0; }
 .days-header { display: grid; gap: 4px; padding: 8px 0 4px; box-sizing: border-box; }
 .day-header-cell {
   text-align: center; padding: 8px 4px; border-radius: 7px; font-size: 0.72rem; font-weight: 700;
   background: var(--surface); border: 2px solid var(--border); cursor: pointer; position: relative;
-  min-height: 60px; box-sizing: border-box; overflow: visible;
+  min-height: 60px; box-sizing: border-box; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
 .day-header-cell.today { border-color: var(--accent); }
@@ -160,7 +160,7 @@ main { display: flex; flex: 1; min-height: 0; }
 }
 .drop-zone.active { border-color: var(--accent); background: rgba(59,143,255,0.08); }
 .btn-dup {
-  position: absolute; bottom: 4px; right: 28px;
+  position: absolute; bottom: -9px; right: 28px;
   width: 20px; height: 20px; border-radius: 50%;
   background: var(--surface2); border: 1px solid var(--border2);
   color: var(--text2); font-size: 0.65rem; font-weight: 800;
@@ -248,9 +248,25 @@ main { display: flex; flex: 1; min-height: 0; }
 .modal-btn-ok { background: var(--accent); color: #000; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
 #toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── SPINNER CHARGEMENT ── */
+#app-spinner {
+  position: fixed; inset: 0; z-index: 3000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg); gap: 16px; transition: opacity .3s;
+}
+#app-spinner.hide { opacity: 0; pointer-events: none; }
+.spinner-ring {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid var(--border2); border-top-color: var(--accent);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label { font-size: 0.72rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
 </style>
 </head>
 <body>
+<div id="app-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
 <div id="app">
   <header>
     <div class="header-title">Gestion Affectation Parc Réception Roulier</div>
@@ -944,6 +960,8 @@ async function initApp() {
     await fetchHolidays();
     await loadAllData();
     render();
+    const sp = document.getElementById('app-spinner');
+    if (sp) { sp.classList.add('hide'); setTimeout(() => sp.remove(), 350); }
 }
 
 // ── EVENT LISTENERS ──
