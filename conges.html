@@ -416,7 +416,8 @@ function renderAbsences() {
         const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
         const borderColor = colorKey ? colorMap[colorKey] : 'var(--border2)';
 
-        const memberCell = '<td class="member-cell"><div class="member-cell-wrap"><div style="flex:1;padding:4px 6px;border-radius:6px;border:1px solid ' + (colorKey ? borderColor : 'var(--border2)') + ';text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + w.lastName + ' ' + w.firstName + '</div><div style="font-size:0.58rem;color:var(--text3);font-family:\'DM Mono\',monospace;">' + (w.matricule || '—') + '</div></div><button class="btn-demande-conge" onclick="openCongeModal(\''+w.id+'\')" title="Demande de congés">+ Congé</button></div></td>';
+        const bColor = colorKey ? borderColor : 'var(--border2)';
+        const memberCell = `<td class="member-cell"><div class="member-cell-wrap"><div style="flex:1;padding:4px 6px;border-radius:6px;border:1px solid ${bColor};text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div><div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div></div><button class="btn-demande-conge" data-wid="${w.id}" title="Demande de congés">+ Congé</button></div></td>`;
 
         let dayCells = '';
         for (let i = 1; i <= daysInMonth; i++) {
@@ -431,14 +432,21 @@ function renderAbsences() {
             const isFerie = !!state.holidays[dateISO];
             const colorClass = isSun || isFerie ? ' day-sun' : isSat ? ' day-sat' : '';
             const firstLast = i === 1 ? ' day-first' : i === daysInMonth ? ' day-last' : '';
-            const codeSpan = code ? '<span class="' + (isManual ? 'abs-code-manual' : 'abs-code') + '">' + code + '</span>' : '';
-            dayCells += '<td class="day-cell' + colorClass + firstLast + '">' + codeSpan + '</td>';
+            const codeSpan = code ? `<span class="${isManual ? 'abs-code-manual' : 'abs-code'}">${code}</span>` : '';
+            dayCells += `<td class="day-cell${colorClass}${firstLast}">${codeSpan}</td>`;
         }
         const rowColor = colorKey ? borderColor : 'var(--border2)';
-        rows += '<tr style="--row-color:' + rowColor + ';">' + memberCell + dayCells + '</tr><tr class="abs-spacer"><td colspan="' + (daysInMonth + 1) + '"></td></tr>';
+        rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
     });
 
     bodyTable.innerHTML = colgroup + '<thead>' + headerRow + '</thead><tbody>' + rows + '</tbody>';
+    // Event delegation pour les boutons demande de congé
+    bodyTable.querySelectorAll('.btn-demande-conge').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openCongeModal(this.dataset.wid);
+        });
+    });
 }
 
 // ── PDF ABSENCES ──
@@ -668,11 +676,15 @@ window.closeCongeModal = closeCongeModal;
 function renderCmTypes() {
   const types = getCongeTypes();
   const container = document.getElementById('cm-types');
-  container.innerHTML = types.map(t =>
-    '<button class="cm-type-btn' + (t.code === _cmSelectedType ? ' selected' : '') + '" onclick="selectCmType('' + t.code + '')">' + t.label + '</button>'
-  ).join('');
+  container.innerHTML = '';
+  types.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'cm-type-btn' + (t.code === _cmSelectedType ? ' selected' : '');
+    btn.textContent = t.label;
+    btn.onclick = () => selectCmType(t.code);
+    container.appendChild(btn);
+  });
 }
-
 function selectCmType(code) {
   _cmSelectedType = code;
   renderCmTypes();
@@ -694,30 +706,33 @@ function renderCmCal() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const grid = document.getElementById('cm-cal-grid');
   grid.style.gridTemplateColumns = 'repeat(' + daysInMonth + ', 1fr)';
+  grid.innerHTML = '';
 
-  // En-têtes jours
-  let html = '';
+  const DOWS = ['Di','Lu','Ma','Me','Je','Ve','Sa'];
+
   for (let i = 1; i <= daysInMonth; i++) {
     const d = new Date(year, month, i);
-    const dow = ['Di','Lu','Ma','Me','Je','Ve','Sa'][d.getDay()];
-    html += '<div class="cm-day-hdr">' + i + '<br><span style="font-weight:400">' + dow + '</span></div>';
+    const iso = fmtISO(d);
+    // En-tête
+    const hdr = document.createElement('div');
+    hdr.className = 'cm-day-hdr';
+    hdr.innerHTML = i + '<br><span style="font-weight:400">' + DOWS[d.getDay()] + '</span>';
+    grid.appendChild(hdr);
   }
 
-  // Cellules jours
   for (let i = 1; i <= daysInMonth; i++) {
     const d = new Date(year, month, i);
     const iso = fmtISO(d);
     const isSun = d.getDay() === 0;
     const isSat = d.getDay() === 6;
     const isFerie = !!state.holidays[iso];
-    const apiCode = state.absences[_cmWorkerId]?.[iso] || '';
-    const manualCode = state.manualConges[_cmWorkerId]?.[iso] || '';
+    const apiCode = (state.absences[_cmWorkerId] || {})[iso] || '';
+    const manualCode = (state.manualConges[_cmWorkerId] || {})[iso] || '';
 
     const isApiOccupied = !!apiCode;
     const isManual = !isApiOccupied && !!manualCode;
     const displayCode = apiCode || manualCode;
 
-    // Vérifie si dans une plage sélectionnée en cours
     let inSel = false, isStart = false, isEnd = false;
     _cmSelections.forEach(sel => {
       const fd = new Date(sel.from), td = new Date(sel.to);
@@ -726,7 +741,6 @@ function renderCmCal() {
       if (iso === sel.from) isStart = true;
       if (iso === sel.to) isEnd = true;
     });
-    // Plage en cours de sélection (avant 2ème clic)
     if (_cmClickStart) {
       const s = new Date(_cmClickStart < iso ? _cmClickStart : iso);
       const e = new Date(_cmClickStart < iso ? iso : _cmClickStart);
@@ -735,6 +749,7 @@ function renderCmCal() {
       if (iso === _cmClickStart) isStart = true;
     }
 
+    const cell = document.createElement('div');
     let cls = 'cm-day-cell';
     if (isSun || isFerie) cls += ' sun';
     else if (isSat) cls += ' sat';
@@ -744,23 +759,35 @@ function renderCmCal() {
     if (isStart) cls += ' selected-start';
     else if (isEnd) cls += ' selected-end';
     else if (inSel) cls += ' in-range';
+    cell.className = cls;
 
-    const clickable = !isApiOccupied;
-    const onclick = clickable ? 'cmDayClick('' + iso + '')' : '';
-    const delBtn = isManual ? '<div class="cm-del-btn" onclick="event.stopPropagation();cmDeleteDay('' + iso + '')">✕</div>' : '';
+    if (!isApiOccupied) {
+      cell.addEventListener('click', () => cmDayClick(iso));
+    }
 
-    html += '<div class="' + cls + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + '>' +
-      delBtn +
-      (displayCode ? '<div class="cm-day-code">' + displayCode + '</div>' : '') +
-      '</div>';
+    if (isManual) {
+      const delBtn = document.createElement('div');
+      delBtn.className = 'cm-del-btn';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); cmDeleteDay(iso); });
+      cell.appendChild(delBtn);
+    }
+
+    if (displayCode) {
+      const codeDiv = document.createElement('div');
+      codeDiv.className = 'cm-day-code';
+      codeDiv.textContent = displayCode;
+      cell.appendChild(codeDiv);
+    }
+
+    grid.appendChild(cell);
   }
-
-  grid.innerHTML = html;
 }
+
 
 function cmDayClick(iso) {
   if (!_cmSelectedType) {
-    toast('Choisissez d'abord un type de congés', 'error');
+    toast("Choisissez d'abord un type de congés", 'error');
     return;
   }
 
@@ -859,17 +886,22 @@ function renderCmSelections() {
   const cont = document.getElementById('cm-selections');
   if (_cmSelections.length === 0) {
     wrap.style.display = 'none';
+    cont.innerHTML = '';
     return;
   }
   wrap.style.display = '';
-  cont.innerHTML = _cmSelections.map((sel, idx) => {
+  cont.innerHTML = '';
+  _cmSelections.forEach((sel, idx) => {
     const count = Object.keys(sel.days).length;
     const label = sel.from === sel.to ? sel.from : sel.from + ' → ' + sel.to;
-    return '<div class="cm-sel-tag" onclick="removeSelection(' + idx + ')" title="Cliquer pour supprimer">' +
-      sel.code + ' · ' + label + ' (' + count + 'j) ✕</div>';
-  }).join('');
+    const tag = document.createElement('div');
+    tag.className = 'cm-sel-tag';
+    tag.title = 'Cliquer pour supprimer';
+    tag.textContent = sel.code + ' · ' + label + ' (' + count + 'j) ✕';
+    tag.onclick = () => removeSelection(idx);
+    cont.appendChild(tag);
+  });
 }
-
 function removeSelection(idx) {
   _cmSelections.splice(idx, 1);
   renderCmSelections();
