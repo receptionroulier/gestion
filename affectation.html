@@ -249,13 +249,6 @@ main { display: flex; flex: 1; min-height: 0; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
 #toast.show { transform: translateY(0); opacity: 1; }
 
-/* ── SPINNER CHARGEMENT ── */
-#app-spinner {
-  position: fixed; inset: 0; z-index: 3000;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: var(--bg); gap: 16px; transition: opacity .3s;
-}
-#app-spinner.hide { opacity: 0; pointer-events: none; }
 .spinner-ring {
   width: 44px; height: 44px; border-radius: 50%;
   border: 3px solid var(--border2); border-top-color: var(--accent);
@@ -263,10 +256,22 @@ main { display: flex; flex: 1; min-height: 0; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner-label { font-size: 0.72rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
+
+/* ── SPINNER ZONE CONTENU ── */
+.zone-spinner {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; width: 100%; gap: 14px; padding: 40px 0;
+}
+.spinner-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--border2); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label { font-size: 0.7rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
 </style>
 </head>
 <body>
-<div id="app-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
 <div id="app">
   <header>
     <div class="header-title">Gestion Affectation Parc Réception Roulier</div>
@@ -303,7 +308,7 @@ main { display: flex; flex: 1; min-height: 0; }
         </div>
         <div id="week-scroll-area">
           <div id="week-inner" style="min-width:560px;padding:4px 10px 10px;">
-            <div class="week-grid" id="week-grid"></div>
+            <div class="week-grid" id="week-grid"><div class="zone-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div></div>
           </div>
         </div>
       </div>
@@ -960,8 +965,6 @@ async function initApp() {
     await fetchHolidays();
     await loadAllData();
     render();
-    const sp = document.getElementById('app-spinner');
-    if (sp) { sp.classList.add('hide'); setTimeout(() => sp.remove(), 350); }
 }
 
 // ── EVENT LISTENERS ──
