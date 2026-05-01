@@ -138,14 +138,17 @@ main { display: flex; flex: 1; min-height: 0; }
 /* ── CONGES MANUELS (gris) ── */
 .abs-code-manual { display: inline-flex; align-items: center; justify-content: center; width: 88%; height: 18px; font-weight: 700; border-radius: 3px; background: rgba(140,150,165,0.30); color: #9ba8b8; font-size: 0.58rem; position: relative; }
 /* ── BOUTON DEMANDE CONGES FLOTTANT ── */
-.member-cell-wrap { position: relative; display: flex; align-items: center; gap: 4px; }
+.member-cell-wrap { position: relative; display: block; }
 .btn-demande-conge {
   opacity: 0; pointer-events: none;
   transition: opacity .15s;
-  background: rgba(59,143,255,0.15); border: 1px solid rgba(59,143,255,0.35);
-  color: var(--accent); font-size: 0.62rem; font-weight: 700;
-  border-radius: 5px; padding: 2px 6px; cursor: pointer; white-space: nowrap;
-  font-family: inherit; flex-shrink: 0;
+  position: absolute; bottom: 2px; right: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); border: none;
+  color: #000; font-size: 0.75rem; font-weight: 900;
+  line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; font-family: inherit;
 }
 tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 /* ── MODALE DEMANDE CONGES ── */
@@ -417,7 +420,7 @@ function renderAbsences() {
         const borderColor = colorKey ? colorMap[colorKey] : 'var(--border2)';
 
         const bColor = colorKey ? borderColor : 'var(--border2)';
-        const memberCell = `<td class="member-cell"><div class="member-cell-wrap"><div style="flex:1;padding:4px 6px;border-radius:6px;border:1px solid ${bColor};text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div><div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div></div><button class="btn-demande-conge" data-wid="${w.id}" title="Demande de congés">+ Congé</button></div></td>`;
+        const memberCell = `<td class="member-cell"><div class="member-cell-wrap" style="padding:4px 6px;border-radius:6px;border:1px solid ${bColor};text-align:left;"><div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div><div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div><button class="btn-demande-conge" data-wid="${w.id}" title="Demande de congés">+</button></div></td>`;
 
         let dayCells = '';
         for (let i = 1; i <= daysInMonth; i++) {
