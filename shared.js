@@ -716,7 +716,7 @@ function openCfgModule(module) {
     b.classList.toggle('active', b.dataset.module === module);
   });
 
-  const titles = { mail: 'Emails', personnel: 'Groupes', absences: 'Membres', vacances: 'Vacances scolaires' };
+  const titles = { mail: 'Emails', personnel: 'Groupes', absences: 'Membres', vacances: 'Vacances scolaires', congetypes: 'Types de congés' };
   const titleEl = document.getElementById('cfg-subpanel-title');
   if (titleEl) titleEl.textContent = titles[module] || module;
 
@@ -783,6 +783,16 @@ function openCfgModule(module) {
       </div>
     `;
     footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveVacancesConfig()">Enregistrer</button>`;
+  }
+  else if (module === 'congetypes') {
+    // CONGE_TYPES_BASE et saveCongeTypesConfig() sont définis dans conges.html
+    // On appelle la fonction de rendu exposée sur window
+    if (typeof window.renderCongeTypesPanel === 'function') {
+      window.renderCongeTypesPanel(body, footer);
+    } else {
+      body.innerHTML = `<div style="font-size:0.72rem;color:var(--text3);padding:10px 0;">Disponible uniquement depuis la vue Congés.</div>`;
+      footer.innerHTML = '';
+    }
   }
 
   const subpanel = document.getElementById('cfg-subpanel');

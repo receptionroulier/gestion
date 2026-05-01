@@ -605,20 +605,14 @@ document.addEventListener('click', function() { closeMonthPicker(); });
 
 document.getElementById('btn-settings').addEventListener('click', function() { showConfigModal(); });
 document.getElementById('cfg-overlay').addEventListener('click', closeCfgSidebar);
-// Étendre openCfgModule pour gérer le module congetypes (spécifique à conges.html)
-// shared.js est déjà chargé ici, on wrape la fonction
-(function() {
-  const _origOpenCfgModule = window.openCfgModule;
-  window.openCfgModule = function(module) {
-    if (module === 'congetypes') {
-      _cfgActiveModule = 'congetypes';
-      document.querySelectorAll('.cfg-module-btn').forEach(b => b.classList.toggle('active', b.dataset.module === 'congetypes'));
-      openCongeTypesModule();
-      return;
-    }
-    _origOpenCfgModule(module);
-  };
-})();
+document.querySelectorAll('.cfg-module-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const mod = btn.dataset.module;
+    if (_cfgActiveModule === mod) { closeCfgSubpanel(); }
+    else { openCfgModule(mod); }
+  });
+});
 document.getElementById('btn-print-abs').addEventListener('click', printAbsPDF);
 
 // ✅ CORRECTION : Créer un nouveau Date au lieu de modifier l'existant
@@ -685,25 +679,16 @@ function getCongeTypes() {
   return types;
 }
 
-// ── ADMIN TYPES CONGÉS (module config) ──
-function openCongeTypesModule() {
-  const titleEl = document.getElementById('cfg-subpanel-title');
-  if (titleEl) titleEl.textContent = 'Types de congés';
-  const body = document.getElementById('cfg-subpanel-body');
-  const footer = document.getElementById('cfg-subpanel-footer');
-  if (!body || !footer) return;
-
+// ── ADMIN TYPES CONGÉS (rendu du panneau config, appelé par shared.js) ──
+window.renderCongeTypesPanel = function(body, footer) {
   const customLabels = state.config.congeLabels || {};
   const allTypes = getCongeTypes();
 
   const rows = allTypes.map(t => {
     const customLabel = customLabels[t.code] || '';
-    // Libellé par défaut : partie après "CODE — "
     const defaultLabel = CONGE_TYPES_BASE.find(b => b.code === t.code)?.label?.replace(/^.+? — /, '') || '';
     const apiBadge = t.isApi ? '<span class="cfg-ctype-api-badge">API</span>' : '';
-    // Valeur affichée : custom si défini, sinon défaut
     const inputVal = customLabel || defaultLabel;
-    // Style différencié si c'est le libellé par défaut (non personnalisé)
     const inputStyle = customLabel ? '' : 'color:var(--text3);font-style:italic;';
     return `<div class="cfg-ctype-row">
       <span class="cfg-ctype-code">${t.code}</span>
@@ -720,10 +705,7 @@ function openCongeTypesModule() {
     <div style="display:flex;flex-direction:column;">${rows}</div>
   `;
   footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveCongeTypesConfig()">Enregistrer</button>`;
-
-  const subpanel = document.getElementById('cfg-subpanel');
-  if (subpanel) subpanel.classList.add('open');
-}
+};
 
 window.saveCongeTypesConfig = function() {
   if (!state.config.congeLabels) state.config.congeLabels = {};
@@ -731,7 +713,6 @@ window.saveCongeTypesConfig = function() {
     const code = input.dataset.code;
     const val = input.value.trim();
     const def = input.dataset.default || '';
-    // Ne sauvegarder que si différent du défaut et non vide
     if (val && val !== def) {
       state.config.congeLabels[code] = val;
     } else {
