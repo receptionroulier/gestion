@@ -87,7 +87,7 @@ main { display: flex; flex: 1; min-height: 0; }
 #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 #view-week { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 #week-header-area { flex-shrink: 0; overflow: visible; background: var(--bg); border-bottom: 2px solid var(--border2); position: relative; z-index: 10; }
-#week-scroll-area { flex: 1; overflow: auto; min-height: 0; }
+#week-scroll-area { flex: 1; overflow: auto; min-height: 0; position: relative; }
 .days-header { display: grid; gap: 4px; padding: 8px 0 4px; box-sizing: border-box; }
 .day-header-cell {
   text-align: center; padding: 8px 4px; border-radius: 7px; font-size: 0.72rem; font-weight: 700;
@@ -248,6 +248,19 @@ main { display: flex; flex: 1; min-height: 0; }
 .modal-btn-ok { background: var(--accent); color: #000; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
 #toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── SPINNER ZONE CONTENU ── */
+.zone-spinner {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: absolute; inset: 0; gap: 14px;
+}
+.spinner-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--border2); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label { font-size: 0.7rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
 </style>
 </head>
 <body>
@@ -287,7 +300,7 @@ main { display: flex; flex: 1; min-height: 0; }
         </div>
         <div id="week-scroll-area">
           <div id="week-inner" style="min-width:560px;padding:4px 10px 10px;">
-            <div class="week-grid" id="week-grid"></div>
+            <div class="week-grid" id="week-grid"><div class="zone-spinner" id="week-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div></div>
           </div>
         </div>
       </div>
@@ -648,6 +661,8 @@ function updateWeekLabel() {
 }
 
 function render() {
+    const sp = document.getElementById('week-spinner');
+    if (sp) sp.remove();
   updateWeekLabel();
   renderStaffList(document.getElementById('staff-search').value);
   renderWeekHeader();
