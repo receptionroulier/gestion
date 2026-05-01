@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Congés - Parc Réception Roulier</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e14; --surface: #111722; --surface2: #1a2130;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+  --accent: #3b8fff; --text: #e8edf5; --text2: #7a8fa8; --text3: #4a5a6e;
+  --red: #ff4d6d; --blue: #3b8fff; --warn: #ff6b35; --green: #00c896;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100vh; }
+header {
+  display: flex; flex-direction: column;
+  padding: 10px 20px 8px; background: var(--surface);
+  border-bottom: 1px solid var(--border2); flex-shrink: 0; gap: 6px;
+}
+.header-title {
+  font-size: 0.7rem; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap;
+}
+.header-row { display: flex; align-items: center; gap: 8px; }
+.week-nav { display: flex; align-items: center; gap: 6px; position: relative; }
+.header-spacer { flex: 1; }
+.btn { padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 0.74rem; font-weight: 700; border: none; transition: all .15s; white-space: nowrap; font-family: inherit; }
+.btn-ghost { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover { color: var(--text); background: var(--surface); border-color: var(--accent); }
+.btn-view { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); padding: 6px 14px; border-radius: 7px; cursor: pointer; font-size: 0.74rem; font-weight: 700; transition: all .15s; white-space: nowrap; font-family: inherit; }
+.btn-view:hover { color: var(--text); background: var(--surface); border-color: var(--accent); }
+.btn-view.active { background: var(--accent); color: #000; border-color: var(--accent); }
+#month-picker-popup {
+  display:none;position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:var(--surface);border:1px solid var(--border2);border-radius:12px;
+  padding:12px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:200px;
+}
+main { display: flex; flex: 1; min-height: 0; }
+#panel-staff {
+  width: 220px; flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border2); display: none; flex-direction: column; overflow: hidden;
+}
+#content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+#view-absences { display: flex; flex-direction: column; flex: 1; padding: 0; overflow: hidden; }
+#abs-scroll-area { flex: 1; overflow: auto; min-height: 0; }
+#abs-scroll-inner { padding: 0 12px 20px; }
+.abs-table { border-collapse: separate; border-spacing: 0; font-size: 0.65rem; background: transparent; min-width: 100%; table-layout: fixed; }
+.abs-table thead tr th { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 4px 2px; text-align: center; color: var(--text); font-size: 0.6rem; height: 32px; box-sizing: border-box; font-weight: 700; border-bottom: 2px solid var(--border2); }
+.abs-table thead tr th.member-cell { position: sticky; left: 0; z-index: 3; text-align: left; padding-left: 10px; }
+.abs-table thead tr th.day-th { border-left: 1px solid rgba(255,255,255,0.08); background-color: var(--surface); background-blend-mode: normal; }
+.abs-table tbody tr td { padding: 0; text-align: center; height: 28px; box-sizing: border-box; border: none; }
+.abs-table tbody tr td.member-cell { position: sticky; left: 0; z-index: 1; background: var(--surface); padding: 1px 6px 1px 10px; }
+.abs-table tbody tr td.day-cell {
+  border-top: 2px solid var(--row-color, var(--border2));
+  border-bottom: 2px solid var(--row-color, var(--border2));
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+.abs-table tbody tr td.day-first { border-left: 2px solid var(--row-color, var(--border2)); border-radius: 4px 0 0 4px; }
+.abs-table tbody tr td.day-last { border-right: 2px solid var(--row-color, var(--border2)); border-radius: 0 4px 4px 0; }
+.abs-table tbody tr td.day-sat { background: rgba(59,143,255,0.22); }
+.abs-table tbody tr td.day-sun, .abs-table tbody tr td.day-ferie { background: rgba(255,77,109,0.22); }
+.abs-table tbody tr.abs-spacer td { height: 7px; border: none; background: transparent; }
+.abs-code { display: inline-flex; align-items: center; justify-content: center; width: 88%; height: 18px; font-weight: 700; border-radius: 3px; background: rgba(255,107,53,0.35); color: var(--warn); font-size: 0.58rem; }
+#cfg-overlay { position: fixed; inset: 0; z-index: 800; display: none; }
+#cfg-overlay.open { display: block; }
+#cfg-sidebar {
+  position: fixed; top: 0; left: -220px; bottom: 0; width: 220px;
+  background: var(--surface); border-right: 1px solid var(--border2);
+  display: flex; flex-direction: column; z-index: 810;
+  transition: left .22s cubic-bezier(.4,0,.2,1);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.35);
+}
+#cfg-sidebar.open { left: 0; }
+#cfg-sidebar-title { font-size: 0.65rem; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#cfg-modules { flex: 1; overflow-y: auto; padding: 8px 0; }
+.cfg-module-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 14px; background: none; border: none; color: var(--text2);
+  font-family: inherit; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all .12s; text-align: left;
+  border-left: 2px solid transparent;
+}
+.cfg-module-btn:hover { background: var(--surface2); color: var(--text); }
+.cfg-module-btn.active { background: var(--surface2); color: var(--accent); border-left-color: var(--accent); }
+.cfg-module-icon { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+.cfg-module-label { flex: 1; }
+.cfg-module-arrow { font-size: 0.65rem; color: var(--text3); }
+#cfg-subpanel {
+  position: fixed; top: 0; bottom: 0; left: 220px;
+  width: 320px; background: var(--surface2); border-right: 1px solid var(--border2);
+  display: flex; flex-direction: column; z-index: 809;
+  transform: translateX(-8px); opacity: 0; pointer-events: none;
+  transition: transform .18s cubic-bezier(.4,0,.2,1), opacity .18s;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+}
+#cfg-subpanel.open { transform: translateX(0); opacity: 1; pointer-events: all; }
+#cfg-subpanel-title { font-size: 0.65rem; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#cfg-subpanel-body { flex: 1; overflow-y: auto; padding: 14px; }
+#cfg-subpanel-footer { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+.cfg-staff-list { display: flex; flex-direction: column; gap: 4px; }
+.cfg-staff-row  { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; }
+.cfg-staff-row:hover { background: var(--surface); }
+.cfg-staff-name { font-size: 0.73rem; font-weight: 600; flex: 1; }
+.cfg-colors     { display: flex; gap: 4px; align-items: center; }
+.cfg-swatch     { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .12s, border-color .12s; flex-shrink: 0; }
+.cfg-swatch:hover    { transform: scale(1.2); }
+.cfg-swatch.selected { border-color: #fff; }
+.cfg-swatch-reset    { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--surface2); border: 1px solid var(--border2); font-size: 0.6rem; display: flex; align-items: center; justify-content: center; color: var(--text3); transition: all .12s; flex-shrink: 0; }
+.cfg-swatch-reset:hover { color: var(--red); border-color: var(--red); }
+#modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+#modal-overlay.show { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; max-width: 520px; width: 94%; }
+.modal-label { font-size: 0.72rem; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; }
+.modal-input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 8px 12px; margin-bottom: 12px; outline: none; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal-btn { padding: 8px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; }
+.modal-btn-cancel { background: var(--surface2); color: var(--text2); }
+.modal-btn-ok { background: var(--accent); color: #000; }
+#toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
+#toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="header-title">Gestion Congés Parc Réception Roulier</div>
+    <div class="header-row">
+      <button class="btn btn-ghost" id="btn-settings" style="padding:5px 9px;">⚙️</button>
+      <button class="btn-view" id="btn-view-week" onclick="window.location.href='affectation.html'">Affectation</button>
+      <button class="btn-view active" id="btn-view-absences">Congés</button>
+      <div class="header-spacer"></div>
+      <div class="week-nav" id="header-month-nav" style="position:relative;">
+        <button id="btn-abs-prev" class="btn btn-ghost" style="padding:4px 10px;font-size:1rem;">‹</button>
+        <div id="header-month-label" style="font-size:0.8rem;font-weight:700;background:var(--surface2);padding:5px 14px;border-radius:20px;border:1px solid var(--border2);white-space:nowrap;min-width:140px;text-align:center;cursor:pointer;transition:border-color .15s;" title="Choisir un mois">—</div>
+        <div id="month-picker-popup">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <button id="mp-prev-year" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1rem;padding:0 4px;transition:color .12s;">‹</button>
+            <span id="mp-year-label" style="font-size:0.75rem;font-weight:700;color:var(--text);"></span>
+            <button id="mp-next-year" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1rem;padding:0 4px;transition:color .12s;">›</button>
+          </div>
+          <div id="mp-months-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;"></div>
+        </div>
+        <button id="btn-abs-next" class="btn btn-ghost" style="padding:4px 10px;font-size:1rem;">›</button>
+      </div>
+      <div class="header-spacer"></div>
+      <button class="btn btn-ghost" id="btn-print-abs" title="Imprimer PDF">🖨 PDF</button>
+      <span id="sync-status"></span>
+    </div>
+  </header>
+  <main>
+    <div id="panel-staff">
+      <div class="panel-title">Personnel</div>
+      <input type="text" id="staff-search" placeholder="Rechercher…">
+      <div id="staff-list"></div>
+    </div>
+    <div id="content">
+      <div id="view-absences">
+        <div id="abs-scroll-area">
+          <div id="abs-scroll-inner">
+            <table class="abs-table" id="abs-body-table">
+              <thead id="abs-thead"></thead>
+              <tbody id="abs-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="modal-overlay"><div class="modal" id="modal-content"></div></div>
+<div id="cfg-overlay"></div>
+<div id="cfg-sidebar">
+  <div id="cfg-sidebar-title">⚙ Configuration</div>
+  <div id="cfg-modules">
+    <button class="cfg-module-btn" data-module="absences"><span class="cfg-module-icon">📋</span><span class="cfg-module-label">Membres</span><span class="cfg-module-arrow">›</span></button>
+    <button class="cfg-module-btn" data-module="personnel"><span class="cfg-module-icon">👥</span><span class="cfg-module-label">Groupes</span><span class="cfg-module-arrow">›</span></button>
+    <button class="cfg-module-btn" data-module="mail"><span class="cfg-module-icon">✉</span><span class="cfg-module-label">Emails</span><span class="cfg-module-arrow">›</span></button>
+    <button class="cfg-module-btn" data-module="vacances"><span class="cfg-module-icon">🏖</span><span class="cfg-module-label">Vacances scolaires</span><span class="cfg-module-arrow">›</span></button>
+  </div>
+</div>
+<div id="cfg-subpanel">
+  <div id="cfg-subpanel-title"></div>
+  <div id="cfg-subpanel-body"></div>
+  <div id="cfg-subpanel-footer"></div>
+</div>
+<div id="toast"></div>
+<script src="shared.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONGES.HTML - Logique spécifique vue Congés (Mois)
+// ═══════════════════════════════════════════════════════════════
+
+let _mpYear = new Date().getFullYear();
+const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+// ── RENDER ABSENCES TABLE ──
+function renderAbsences() {
+    const startOfMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth(), 1);
+    const daysInMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 0).getDate();
+    const monthLabel = state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    const headerLabel = document.getElementById('header-month-label');
+    if (headerLabel) headerLabel.textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+    const bodyTable = document.getElementById('abs-body-table');
+    if (!bodyTable) return;
+
+    if (state.staff.length === 0) {
+        bodyTable.innerHTML = '<thead></thead><tbody><tr><td colspan="32" style="padding:20px;text-align:center;color:var(--text3)">Aucune donnée</td></tr></tbody>';
+        return;
+    }
+
+    const MEMBER_W = '160px';
+    const DAY_W = '28px';
+
+    const order = state.config.absOrder || state.staff.map(w => w.id);
+    const staffSorted = [...order].map(id => state.staff.find(w => w.id === id)).filter(Boolean);
+    state.staff.forEach(w => { if (!staffSorted.find(s => s.id === w.id)) staffSorted.push(w); });
+
+    let colgroup = `<colgroup><col style="width:${MEMBER_W};min-width:${MEMBER_W};max-width:${MEMBER_W};">`;
+    for (let i = 1; i <= daysInMonth; i++) colgroup += `<col style="width:${DAY_W};min-width:${DAY_W};">`;
+    colgroup += '</colgroup>';
+
+    let headerRow = `<tr><th class="member-cell">Personnel</th>`;
+    for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+        const dateISO = fmtISO(d);
+        const dow = d.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 3);
+        const isSat = d.getDay() === 6;
+        const isSun = d.getDay() === 0;
+        const isFerie = !!state.holidays[dateISO];
+        const isVacances = !!(state.schoolHolidays && state.schoolHolidays[dateISO]);
+        const isRed = isSun || isFerie;
+        const bgStyle = isRed ? 'background-image:linear-gradient(rgba(255,77,109,0.18),rgba(255,77,109,0.18));' : isSat ? 'background-image:linear-gradient(rgba(59,143,255,0.18),rgba(59,143,255,0.18));' : '';
+        const vacStyle = isVacances ? 'box-shadow:inset 0 3px 0 var(--red);' : '';
+        headerRow += `<th class="day-th" style="${bgStyle}${vacStyle}">${i}<br><span style="font-weight:400;font-size:0.55rem">${dow}</span></th>`;
+    }
+    headerRow += '</tr>';
+
+    let rows = '';
+    staffSorted.forEach(w => {
+        const colorKey = state.config.workerColors?.[w.id];
+        const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
+        const borderColor = colorKey ? colorMap[colorKey] : 'var(--border2)';
+
+        const memberCell = `
+          <td class="member-cell">
+            <div style="padding:4px 6px;border-radius:6px;border:1px solid ${colorKey ? borderColor : 'var(--border2)'};text-align:left;">
+              <div style="font-size:0.68rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.lastName} ${w.firstName}</div>
+              <div style="font-size:0.58rem;color:var(--text3);font-family:'DM Mono',monospace;">${w.matricule || '—'}</div>
+            </div>
+          </td>`;
+
+        let dayCells = '';
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateISO = fmtISO(new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i));
+            const code = state.absences[w.id]?.[dateISO] || '';
+            const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+            const isSat = d.getDay() === 6;
+            const isSun = d.getDay() === 0;
+            const isFerie = !!state.holidays[dateISO];
+            const colorClass = isSun || isFerie ? ' day-sun' : isSat ? ' day-sat' : '';
+            const firstLast = i === 1 ? ' day-first' : i === daysInMonth ? ' day-last' : '';
+            dayCells += `<td class="day-cell${colorClass}${firstLast}">${code ? `<span class="abs-code">${code}</span>` : ''}</td>`;
+        }
+        const rowColor = colorKey ? borderColor : 'var(--border2)';
+        rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
+    });
+
+    bodyTable.innerHTML = colgroup + `<thead>${headerRow}</thead><tbody>${rows}</tbody>`;
+}
+
+// ── PDF ABSENCES ──
+function printAbsPDF() {
+  const startOfMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth(), 1);
+  const daysInMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 0).getDate();
+  const monthLabel = state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  const order = state.config.absOrder || state.staff.map(w => w.id);
+  const printSet = new Set(state.config.absPrint !== undefined ? state.config.absPrint : state.staff.map(w => w.id));
+  const staffSorted = [...order].map(id => state.staff.find(w => w.id === id)).filter(Boolean);
+  state.staff.forEach(w => { if (!staffSorted.find(s => s.id === w.id)) staffSorted.push(w); });
+  const printStaff = staffSorted.filter(w => printSet.has(w.id));
+
+  const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
+
+  let thDays = '';
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+    const dow = d.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 2);
+    const isSat = d.getDay() === 6;
+    const isSun = d.getDay() === 0;
+    const isFerie = !!state.holidays[fmtISO(d)];
+    const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#f5f5f5';
+    thDays += `<th style="background:${bg};width:22px;font-size:8px;padding:2px 0;">${i}<br><span style="font-weight:400;font-size:7px">${dow}</span></th>`;
+  }
+
+  let bodyRows = '';
+  printStaff.forEach(w => {
+    const colorKey = state.config.workerColors?.[w.id];
+    const borderColor = colorKey ? colorMap[colorKey] : '#ccc';
+    let tds = '';
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+      const dateISO = fmtISO(d);
+      const code = state.absences[w.id]?.[dateISO] || '';
+      const isSat = d.getDay() === 6;
+      const isSun = d.getDay() === 0;
+      const isFerie = !!state.holidays[dateISO];
+      const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#fff';
+      tds += `<td style="background:${bg};text-align:center;font-size:8px;font-weight:700;color:#d04000;padding:0;">${code}</td>`;
+    }
+    bodyRows += `<tr>
+      <td style="border-left:3px solid ${borderColor};padding:3px 6px;white-space:nowrap;">
+        <div style="font-size:9px;font-weight:700;">${w.lastName} ${w.firstName}</div>
+        <div style="font-size:7px;color:#888;font-family:monospace;">${w.matricule || ''}</div>
+      </td>${tds}</tr>`;
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Absences – ${monthLabel}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 10mm; }
+    h2 { font-size: 13px; margin-bottom: 8px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; }
+    th { text-align: center; }
+    @media print { @page { size: A4 landscape; margin: 8mm; } }
+  </style>
+  </head><body>
+  <h2>Suivi des absences – ${monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}</h2>
+  <table>
+    <thead><tr><th style="text-align:left;padding:3px 6px;font-size:9px;background:#f5f5f5;white-space:nowrap;">Personnel</th>${thDays}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+
+  const w2 = window.open('', '_blank');
+  w2.document.write(html);
+  w2.document.close();
+}
+
+// ── MONTH PICKER ──
+function renderMonthPicker() {
+  const yearLabel = document.getElementById('mp-year-label');
+  const grid = document.getElementById('mp-months-grid');
+  if (!yearLabel || !grid) return;
+
+  yearLabel.textContent = _mpYear;
+  const curM = state.absMonth.getMonth();
+  const curY = state.absMonth.getFullYear();
+
+  grid.innerHTML = MONTHS_FR.map((name, i) => {
+    const isCurrent = i === curM && _mpYear === curY;
+    return `<div data-m="${i}" style="
+      font-size:0.7rem;font-weight:700;text-align:center;padding:5px 4px;border-radius:6px;
+      cursor:pointer;transition:all .1s;
+      background:${isCurrent ? 'var(--accent)' : 'transparent'};
+      color:${isCurrent ? '#000' : 'var(--text2)'};
+    " onmouseover="if(!${isCurrent})this.style.background='var(--surface2)'" onmouseout="if(!${isCurrent})this.style.background='transparent'">${name}</div>`;
+  }).join('');
+
+  grid.querySelectorAll('[data-m]').forEach(el => {
+    el.addEventListener('click', async e => {
+      e.stopPropagation();
+      state.absMonth = new Date(_mpYear, parseInt(el.dataset.m), 1);
+      closeMonthPicker();
+      await loadMonthData();
+      renderAbsences();
+    });
+  });
+}
+
+function openMonthPicker() {
+  _mpYear = state.absMonth.getFullYear();
+  renderMonthPicker();
+  const popup = document.getElementById('month-picker-popup');
+  if (popup) popup.style.display = 'block';
+}
+function closeMonthPicker() {
+  const popup = document.getElementById('month-picker-popup');
+  if (popup) popup.style.display = 'none';
+}
+
+// ── LOAD MONTH DATA ──
+async function loadMonthData() {
+  await Promise.all([
+    fetchSchoolHolidays(state.absMonth),
+    loadAbsencesForMonth(state.absMonth)
+  ]);
+}
+
+// ── INIT ──
+async function initApp() {
+    state.absMonth = new Date();
+    state.view = 'absences';
+    await fetchHolidays();
+    await loadMonthData();
+    renderAbsences();
+}
+
+// ── EVENT LISTENERS ──
+document.getElementById('header-month-label').addEventListener('click', e => {
+  e.stopPropagation();
+  const popup = document.getElementById('month-picker-popup');
+  if (popup && popup.style.display === 'none') openMonthPicker();
+  else closeMonthPicker();
+});
+document.getElementById('mp-prev-year').addEventListener('click', e => {
+  e.stopPropagation(); _mpYear--; renderMonthPicker();
+});
+document.getElementById('mp-next-year').addEventListener('click', e => {
+  e.stopPropagation(); _mpYear++; renderMonthPicker();
+});
+document.addEventListener('click', () => closeMonthPicker());
+
+document.getElementById('btn-settings').addEventListener('click', () => showConfigModal());
+document.getElementById('cfg-overlay').addEventListener('click', closeCfgSidebar);
+document.querySelectorAll('.cfg-module-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const mod = btn.dataset.module;
+    if (_cfgActiveModule === mod) { closeCfgSubpanel(); }
+    else { openCfgModule(mod); }
+  });
+});
+document.getElementById('btn-print-abs').addEventListener('click', printAbsPDF);
+document.getElementById('btn-abs-prev').addEventListener('click', async () => {
+    state.absMonth.setMonth(state.absMonth.getMonth() - 1);
+    await loadMonthData();
+    renderAbsences();
+});
+document.getElementById('btn-abs-next').addEventListener('click', async () => {
+    state.absMonth.setMonth(state.absMonth.getMonth() + 1);
+    await loadMonthData();
+    renderAbsences();
+});
+
+loadState();
+initApp();
+</script>
+</body>
+</html>
