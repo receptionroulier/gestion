@@ -45,7 +45,7 @@ main { display: flex; flex: 1; min-height: 0; }
 }
 #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 #view-absences { display: flex; flex-direction: column; flex: 1; padding: 0; overflow: hidden; }
-#abs-scroll-area { flex: 1; overflow: auto; min-height: 0; }
+#abs-scroll-area { flex: 1; overflow: auto; min-height: 0; position: relative; }
 #abs-scroll-inner { padding: 0 12px 20px; }
 .abs-table { border-collapse: separate; border-spacing: 0; font-size: 0.65rem; background: transparent; min-width: 100%; table-layout: fixed; }
 .abs-table thead tr th { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 4px 2px; text-align: center; color: var(--text); font-size: 0.6rem; height: 32px; box-sizing: border-box; font-weight: 700; border-bottom: 2px solid var(--border2); }
@@ -121,6 +121,19 @@ main { display: flex; flex: 1; min-height: 0; }
 .modal-btn-ok { background: var(--accent); color: #000; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
 #toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── SPINNER ZONE CONTENU ── */
+.zone-spinner {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: absolute; inset: 0; gap: 14px;
+}
+.spinner-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--border2); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label { font-size: 0.7rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
 </style>
 </head>
 <body>
@@ -159,8 +172,9 @@ main { display: flex; flex: 1; min-height: 0; }
     <div id="content">
       <div id="view-absences">
         <div id="abs-scroll-area">
+          <div id="abs-spinner" class="zone-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
           <div id="abs-scroll-inner">
-            <table class="abs-table" id="abs-body-table">
+            <table class="abs-table" id="abs-body-table" style="display:none;">
               <thead id="abs-thead"></thead>
               <tbody id="abs-tbody"></tbody>
             </table>
@@ -198,6 +212,10 @@ const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct'
 
 // ── RENDER ABSENCES TABLE ──
 function renderAbsences() {
+    const sp = document.getElementById('abs-spinner');
+    const tbl = document.getElementById('abs-body-table');
+    if (sp) sp.style.display = 'none';
+    if (tbl) tbl.style.display = '';
     const startOfMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth(), 1);
     const daysInMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 0).getDate();
     const monthLabel = state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -360,6 +378,12 @@ function closeMonthPicker() {
 
 // ── LOAD MONTH DATA ──
 async function loadMonthData() {
+  const lbl = document.getElementById('header-month-label');
+  if (lbl) lbl.textContent = 'Chargement…';
+  const sp = document.getElementById('abs-spinner');
+  const tbl = document.getElementById('abs-body-table');
+  if (sp) sp.style.display = 'flex';
+  if (tbl) tbl.style.display = 'none';
   console.log('[loadMonthData] Mois chargé:', state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
   await Promise.all([
     fetchSchoolHolidays(state.absMonth),
