@@ -173,14 +173,18 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 .cm-close:hover { color: var(--red); }
 .cm-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
 /* Type selector */
-.cm-types { display: flex; flex-wrap: wrap; gap: 6px; }
-.cm-type-btn {
-  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 700;
-  border: 1px solid var(--border2); background: var(--surface2); color: var(--text2);
-  transition: all .13s; font-family: inherit;
+.cm-types { display: flex; align-items: center; gap: 10px; }
+.cm-type-select {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); border-radius: 8px; padding: 7px 12px;
+  font-size: 0.74rem; font-weight: 700; font-family: inherit;
+  cursor: pointer; outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a8fa8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 30px;
 }
-.cm-type-btn:hover { border-color: var(--accent); color: var(--text); }
-.cm-type-btn.selected { background: var(--accent); color: #000; border-color: var(--accent); }
+.cm-type-select:focus { border-color: var(--accent); }
+.cm-type-select option { background: #1a2130; color: var(--text); }
 /* Mini calendar dans modale */
 .cm-cal-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .cm-cal-nav-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; border-radius: 5px; padding: 3px 9px; font-size: 0.9rem; transition: all .12s; }
@@ -313,7 +317,11 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
       <!-- Type sélection -->
       <div>
         <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;">Type de congés</div>
-        <div class="cm-types" id="cm-types"></div>
+        <div class="cm-types">
+          <select class="cm-type-select" id="cm-type-select" onchange="selectCmType(this.value)">
+            <option value="">— Choisir un type —</option>
+          </select>
+        </div>
       </div>
       <!-- Calendrier navigable multi-mois -->
       <div>
@@ -613,18 +621,23 @@ document.getElementById('btn-abs-next').addEventListener('click', async function
 
 // ── TYPES DE CONGÉS (liste fixe, enrichissable dynamiquement) ──
 const CONGE_TYPES_BASE = [
-  { code: 'CP',  label: 'CP — Congé Payé' },
-  { code: 'RR',  label: 'RR — Repos Récupération' },
-  { code: 'RTT', label: 'RTT — Réduction Temps Travail' },
-  { code: 'CSS', label: 'CSS — Congé Sans Solde' },
-  { code: 'AT',  label: 'AT — Accident Travail' },
-  { code: 'MAL', label: 'MAL — Maladie' },
-  { code: 'FE',  label: 'FE — Jour Férié' },
-  { code: 'R',   label: 'R — Repos' },
-  { code: 'RP',  label: 'RP — Repos Programmé' },
-  { code: 'EXC', label: 'EXC — Exceptionnel' },
-  { code: 'PAT', label: 'PAT — Paternité' },
-  { code: 'MAT', label: 'MAT — Maternité' },
+  { code: 'CP',   label: 'CP — Congé Payé' },
+  { code: 'CPAT', label: 'CPAT — Congé Payé Anticipé' },
+  { code: 'RR',   label: 'RR — Repos Récupération' },
+  { code: 'RTT',  label: 'RTT — Réduction Temps Travail' },
+  { code: 'CSS',  label: 'CSS — Congé Sans Solde' },
+  { code: 'AT',   label: 'AT — Accident Travail' },
+  { code: 'MAL',  label: 'MAL — Maladie' },
+  { code: 'MP',   label: 'MP — Maladie Professionnelle' },
+  { code: 'FE',   label: 'FE — Jour Férié' },
+  { code: 'R',    label: 'R — Repos' },
+  { code: 'RP',   label: 'RP — Repos Programmé' },
+  { code: 'EXC',  label: 'EXC — Congé Exceptionnel' },
+  { code: 'PAT',  label: 'PAT — Paternité' },
+  { code: 'MAT',  label: 'MAT — Maternité' },
+  { code: 'AUT',  label: 'AUT — Autres Absences' },
+  { code: 'FORM', label: 'FORM — Formation' },
+  { code: 'EVE',  label: 'EVE — Évènement Familial' },
 ];
 
 // Codes dynamiques découverts via l'API
@@ -678,15 +691,17 @@ window.closeCongeModal = closeCongeModal;
 
 function renderCmTypes() {
   const types = getCongeTypes();
-  const container = document.getElementById('cm-types');
-  container.innerHTML = '';
+  const sel = document.getElementById('cm-type-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Choisir un type —</option>';
   types.forEach(t => {
-    const btn = document.createElement('button');
-    btn.className = 'cm-type-btn' + (t.code === _cmSelectedType ? ' selected' : '');
-    btn.textContent = t.label;
-    btn.onclick = () => selectCmType(t.code);
-    container.appendChild(btn);
+    const opt = document.createElement('option');
+    opt.value = t.code;
+    opt.textContent = t.label;
+    if (t.code === _cmSelectedType) opt.selected = true;
+    sel.appendChild(opt);
   });
+  sel.value = _cmSelectedType || '';
 }
 function selectCmType(code) {
   _cmSelectedType = code;
@@ -884,6 +899,11 @@ function cmDeleteDay(iso) {
 }
 window.cmDeleteDay = cmDeleteDay;
 
+function isoToFR(iso) {
+  const [y, m, d] = iso.split('-');
+  return d + '-' + m + '-' + y;
+}
+
 function renderCmSelections() {
   const wrap = document.getElementById('cm-selections-wrap');
   const cont = document.getElementById('cm-selections');
@@ -895,12 +915,19 @@ function renderCmSelections() {
   wrap.style.display = '';
   cont.innerHTML = '';
   _cmSelections.forEach((sel, idx) => {
-    const count = Object.keys(sel.days).length;
-    const label = sel.from === sel.to ? sel.from : sel.from + ' → ' + sel.to;
+    // Compte uniquement les jours qui correspondent au type principal (pas les R/RP/FE dérivés)
+    const mainCode = sel.code;
+    const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
+    const totalDays = Object.keys(sel.days).length;
+    const fromFR = isoToFR(sel.from);
+    const toFR = isoToFR(sel.to);
+    const label = sel.from === sel.to
+      ? mainCode + ' · ' + fromFR + ' (' + mainDays + ' j)'
+      : mainCode + ' · ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + (totalDays !== mainDays ? ', ' + (totalDays - mainDays) + ' j substitués)' : ')');
     const tag = document.createElement('div');
     tag.className = 'cm-sel-tag';
     tag.title = 'Cliquer pour supprimer';
-    tag.textContent = sel.code + ' · ' + label + ' (' + count + 'j) ✕';
+    tag.textContent = label + ' ✕';
     tag.onclick = () => removeSelection(idx);
     cont.appendChild(tag);
   });
