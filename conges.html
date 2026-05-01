@@ -56,12 +56,14 @@ main { display: flex; flex: 1; min-height: 0; }
 .abs-table tbody tr td.day-cell {
   border-top: 2px solid var(--row-color, var(--border2));
   border-bottom: 2px solid var(--row-color, var(--border2));
-  border-left: 1px solid rgba(255,255,255,0.08);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
 }
 .abs-table tbody tr td.day-first { border-left: 2px solid var(--row-color, var(--border2)); border-radius: 4px 0 0 4px; }
 .abs-table tbody tr td.day-last { border-right: 2px solid var(--row-color, var(--border2)); border-radius: 0 4px 4px 0; }
-.abs-table tbody tr td.day-sat { background: rgba(59,143,255,0.22); }
-.abs-table tbody tr td.day-sun, .abs-table tbody tr td.day-ferie { background: rgba(255,77,109,0.22); }
+/* Fond samedi/dimanche/JF léger, toujours visible */
+.abs-table tbody tr td.day-sat { background: rgba(59,143,255,0.10); }
+.abs-table tbody tr td.day-sun, .abs-table tbody tr td.day-ferie { background: rgba(255,77,109,0.10); }
 .abs-table tbody tr.abs-spacer td { height: 7px; border: none; background: transparent; }
 .abs-code { display: inline-flex; align-items: center; justify-content: center; width: 88%; height: 18px; font-weight: 700; border-radius: 3px; background: rgba(255,107,53,0.35); color: var(--warn); font-size: 0.58rem; }
 #cfg-overlay { position: fixed; inset: 0; z-index: 800; display: none; }
@@ -122,7 +124,14 @@ main { display: flex; flex: 1; min-height: 0; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #000; padding: 10px 18px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; transform: translateY(60px); opacity: 0; transition: all .25s; z-index: 2000; }
 #toast.show { transform: translateY(0); opacity: 1; }
 
-/* ── SPINNER ZONE CONTENU ── */
+/* ── ADMIN TYPES CONGÉS ── */
+.cfg-ctype-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.cfg-ctype-code { font-size: 0.68rem; font-weight: 700; color: var(--accent); font-family: 'DM Mono', monospace; min-width: 48px; }
+.cfg-ctype-api-badge { font-size: 0.55rem; font-weight: 700; background: rgba(255,107,53,0.25); color: var(--warn); border-radius: 3px; padding: 1px 4px; flex-shrink: 0; }
+.cfg-ctype-input { flex: 1; background: var(--surface); border: 1px solid var(--border2); border-radius: 5px; color: var(--text); padding: 3px 7px; font-size: 0.68rem; font-family: inherit; outline: none; }
+.cfg-ctype-input:focus { border-color: var(--accent); }
+.cfg-ctype-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 0.75rem; padding: 0 3px; transition: color .12s; flex-shrink: 0; }
+.cfg-ctype-del:hover { color: var(--red); }
 .zone-spinner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   position: absolute; inset: 0; gap: 14px;
@@ -206,8 +215,14 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 .cm-day-cell.sat { background: rgba(59,143,255,0.15); color: var(--blue); }
 .cm-day-cell.normal { color: var(--text2); }
 .cm-day-cell:hover:not(.disabled):not(.api-occupied) { border-color: var(--accent); color: var(--text); }
-.cm-day-cell.selected-start, .cm-day-cell.selected-end { background: var(--accent) !important; color: #000 !important; border-color: var(--accent) !important; }
-.cm-day-cell.in-range { background: rgba(59,143,255,0.22) !important; border-color: rgba(59,143,255,0.35) !important; }
+/* selected-start : seul jour cliqué — fond plein mais day-type visible sur hover */
+.cm-day-cell.selected-start { background: var(--accent) !important; color: #000 !important; border-color: var(--accent) !important; }
+/* selected-end : même chose */
+.cm-day-cell.selected-end { background: var(--accent) !important; color: #000 !important; border-color: var(--accent) !important; }
+/* in-range : semi-transparent pour voir le fond sam/dim/JF en dessous */
+.cm-day-cell.in-range { background: rgba(59,143,255,0.28) !important; border-color: rgba(59,143,255,0.45) !important; }
+.cm-day-cell.in-range.sat { background: rgba(59,143,255,0.42) !important; }
+.cm-day-cell.in-range.sun, .cm-day-cell.in-range.ferie { background: rgba(59,143,255,0.22) rgba(255,77,109,0.18) !important; background: color-mix(in srgb, rgba(59,143,255,0.30) 50%, rgba(255,77,109,0.20) 50%) !important; border-color: rgba(255,77,109,0.45) !important; }
 .cm-day-cell.has-manual { background: rgba(140,150,165,0.25); color: #9ba8b8; }
 .cm-day-cell.has-api { background: rgba(255,107,53,0.30); color: var(--warn); }
 .cm-day-cell.api-occupied { cursor: not-allowed; opacity: 0.6; }
@@ -292,6 +307,7 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
   <div id="cfg-sidebar-title">⚙ Configuration</div>
   <div id="cfg-modules">
     <button class="cfg-module-btn" data-module="absences"><span class="cfg-module-icon">📋</span><span class="cfg-module-label">Membres</span><span class="cfg-module-arrow">›</span></button>
+    <button class="cfg-module-btn" data-module="congetypes"><span class="cfg-module-icon">🗂</span><span class="cfg-module-label">Types congés</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="personnel"><span class="cfg-module-icon">👥</span><span class="cfg-module-label">Groupes</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="mail"><span class="cfg-module-icon">✉</span><span class="cfg-module-label">Emails</span><span class="cfg-module-arrow">›</span></button>
     <button class="cfg-module-btn" data-module="vacances"><span class="cfg-module-icon">🏖</span><span class="cfg-module-label">Vacances scolaires</span><span class="cfg-module-arrow">›</span></button>
@@ -589,14 +605,20 @@ document.addEventListener('click', function() { closeMonthPicker(); });
 
 document.getElementById('btn-settings').addEventListener('click', function() { showConfigModal(); });
 document.getElementById('cfg-overlay').addEventListener('click', closeCfgSidebar);
-document.querySelectorAll('.cfg-module-btn').forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    const mod = btn.dataset.module;
-    if (_cfgActiveModule === mod) { closeCfgSubpanel(); }
-    else { openCfgModule(mod); }
-  });
-});
+// Étendre openCfgModule pour gérer le module congetypes (spécifique à conges.html)
+// shared.js est déjà chargé ici, on wrape la fonction
+(function() {
+  const _origOpenCfgModule = window.openCfgModule;
+  window.openCfgModule = function(module) {
+    if (module === 'congetypes') {
+      _cfgActiveModule = 'congetypes';
+      document.querySelectorAll('.cfg-module-btn').forEach(b => b.classList.toggle('active', b.dataset.module === 'congetypes'));
+      openCongeTypesModule();
+      return;
+    }
+    _origOpenCfgModule(module);
+  };
+})();
 document.getElementById('btn-print-abs').addEventListener('click', printAbsPDF);
 
 // ✅ CORRECTION : Créer un nouveau Date au lieu de modifier l'existant
@@ -644,18 +666,82 @@ const CONGE_TYPES_BASE = [
 let _dynamicCodes = new Set(CONGE_TYPES_BASE.map(t => t.code));
 
 function getCongeTypes() {
-  // Enrichit avec les codes API inconnus
-  const types = [...CONGE_TYPES_BASE];
+  // Labels personnalisés depuis la config
+  const customLabels = state.config.congeLabels || {};
+  const types = CONGE_TYPES_BASE.map(t => ({
+    ...t,
+    label: customLabels[t.code] ? t.code + ' — ' + customLabels[t.code] : t.label
+  }));
+  // Codes API inconnus
   Object.values(state.absences || {}).forEach(days => {
     Object.values(days).forEach(code => {
       if (code && !_dynamicCodes.has(code)) {
         _dynamicCodes.add(code);
-        types.push({ code, label: code + ' — (API)' });
+        const customLabel = customLabels[code];
+        types.push({ code, label: customLabel ? code + ' — ' + customLabel : code + ' — (API)', isApi: true });
       }
     });
   });
   return types;
 }
+
+// ── ADMIN TYPES CONGÉS (module config) ──
+function openCongeTypesModule() {
+  const titleEl = document.getElementById('cfg-subpanel-title');
+  if (titleEl) titleEl.textContent = 'Types de congés';
+  const body = document.getElementById('cfg-subpanel-body');
+  const footer = document.getElementById('cfg-subpanel-footer');
+  if (!body || !footer) return;
+
+  const customLabels = state.config.congeLabels || {};
+  const allTypes = getCongeTypes();
+
+  const rows = allTypes.map(t => {
+    const customLabel = customLabels[t.code] || '';
+    // Libellé par défaut : partie après "CODE — "
+    const defaultLabel = CONGE_TYPES_BASE.find(b => b.code === t.code)?.label?.replace(/^.+? — /, '') || '';
+    const apiBadge = t.isApi ? '<span class="cfg-ctype-api-badge">API</span>' : '';
+    // Valeur affichée : custom si défini, sinon défaut
+    const inputVal = customLabel || defaultLabel;
+    // Style différencié si c'est le libellé par défaut (non personnalisé)
+    const inputStyle = customLabel ? '' : 'color:var(--text3);font-style:italic;';
+    return `<div class="cfg-ctype-row">
+      <span class="cfg-ctype-code">${t.code}</span>
+      ${apiBadge}
+      <input class="cfg-ctype-input" data-code="${t.code}" data-default="${defaultLabel}" placeholder="${defaultLabel || t.code}" value="${inputVal}" style="${inputStyle}" oninput="this.style.color='';this.style.fontStyle='';">
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="font-size:0.65rem;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Personnalisez les libellés affichés dans la liste déroulante.<br>
+      Les codes marqués <span style="color:var(--warn);font-weight:700;">API</span> ont été découverts automatiquement.
+    </div>
+    <div style="display:flex;flex-direction:column;">${rows}</div>
+  `;
+  footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveCongeTypesConfig()">Enregistrer</button>`;
+
+  const subpanel = document.getElementById('cfg-subpanel');
+  if (subpanel) subpanel.classList.add('open');
+}
+
+window.saveCongeTypesConfig = function() {
+  if (!state.config.congeLabels) state.config.congeLabels = {};
+  document.querySelectorAll('.cfg-ctype-input[data-code]').forEach(input => {
+    const code = input.dataset.code;
+    const val = input.value.trim();
+    const def = input.dataset.default || '';
+    // Ne sauvegarder que si différent du défaut et non vide
+    if (val && val !== def) {
+      state.config.congeLabels[code] = val;
+    } else {
+      delete state.config.congeLabels[code];
+    }
+  });
+  saveState();
+  closeCfgSubpanel();
+  toast('Libellés des congés sauvegardés ✓');
+};
 
 // ── ÉTAT MODALE ──
 let _cmWorkerId = null;
@@ -760,11 +846,8 @@ function renderCmCal() {
       if (iso === sel.to) isEnd = true;
     });
     if (_cmClickStart) {
-      const s = new Date(_cmClickStart < iso ? _cmClickStart : iso);
-      const e = new Date(_cmClickStart < iso ? iso : _cmClickStart);
-      const dd = new Date(iso);
-      if (dd >= s && dd <= e) inSel = true;
       if (iso === _cmClickStart) isStart = true;
+      // Pas de preview de plage avant le 2ème clic : on marque seulement le 1er jour
     }
 
     const cell = document.createElement('div');
@@ -923,8 +1006,7 @@ function renderCmSelections() {
     const toFR = isoToFR(sel.to);
     const label = sel.from === sel.to
       ? mainCode + ' · ' + fromFR + ' (' + mainDays + ' j)'
-      : mainCode + ' · ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + (totalDays !== mainDays ? ', ' + (totalDays - mainDays) + ' j substitués)' : ')');
-    const tag = document.createElement('div');
+      : mainCode + ' · ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + ')';    const tag = document.createElement('div');
     tag.className = 'cm-sel-tag';
     tag.title = 'Cliquer pour supprimer';
     tag.textContent = label + ' ✕';
