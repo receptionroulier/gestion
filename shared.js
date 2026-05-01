@@ -183,12 +183,14 @@ async function fetchNavires(dateFrom, dateTo) {
 // ── API PERSONNEL ──
 async function fetchPersonnel(dateFrom, dateTo) {
     try {
+        console.log('[fetchPersonnel] Appel API:', dateFrom, '→', dateTo);
         const response = await fetch(PLAN_PROXY, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'workers', dateFrom, dateTo })
         });
         const data = await response.json();
+        console.log('[fetchPersonnel] Réponse API:', data);
         return data;
     } catch(e) {
         console.error('[API] Error personnel:', e);
@@ -203,8 +205,11 @@ function parsePersonnelData(personnelData, dateFrom, dateTo) {
     const workerAssignmentMap = {};
 
     if (!personnelData || !personnelData.workerCalendars) {
+        console.log('[parsePersonnelData] Aucune donnée personnel');
         return { staff: [], absences: {}, workerAssignmentMap: {} };
     }
+
+    console.log('[parsePersonnelData] Workers reçus:', personnelData.workerCalendars.length);
 
     personnelData.workerCalendars.forEach(wc => {
         const workerId = String(wc.workerId);
@@ -220,6 +225,7 @@ function parsePersonnelData(personnelData, dateFrom, dateTo) {
             });
         }
         if (wc.days) {
+            console.log('[parsePersonnelData] Worker', workerId, 'days:', wc.days.length);
             wc.days.forEach(day => {
                 if (!day.date) return;
                 if (day.isAbsence && day.code) {
@@ -596,19 +602,30 @@ async function loadAllData() {
     savePlanningRemote();
 }
 
-// ── LOAD ABSENCES FOR MONTH ──
+// ── LOAD ABSENCES FOR MONTH (CORRIGÉ) ──
 async function loadAbsencesForMonth(monthDate) {
-    const startOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-    const endOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0);
+
     const dateStart = fmtISO(startOfMonth);
     const dateEnd = fmtISO(endOfMonth);
 
+    console.log('[loadAbsencesForMonth] Période:', dateStart, '→', dateEnd, '| Jours:', endOfMonth.getDate());
+
     const personnelData = await fetchPersonnel(dateStart, dateEnd);
+
+    console.log('[loadAbsencesForMonth] Données API:', personnelData);
+
     const parsed = parsePersonnelData(personnelData, dateStart, dateEnd);
 
     state.staff = parsed.staff;
     state.absences = parsed.absences;
     state.workerAssignmentMap = parsed.workerAssignmentMap;
+
+    console.log('[loadAbsencesForMonth] Personnel:', state.staff.length, '| Absences chargées:', Object.keys(state.absences).length);
 }
 
 // ── CONFIG SIDEBAR ──
