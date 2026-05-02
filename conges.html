@@ -1031,45 +1031,40 @@ function generateFicheConges() {
   const W = 210, H = 297;
   const margin = 18;
 
-  // ── COULEUR TRANSMANUTENTION (orange-rouge du logo) ──
-  const ORANGE = [214, 78, 18]; // #D64E12
+  // ── COULEUR TRANSMANUTENTION (bleu) ──
+  const BLUE = [47, 117, 181]; // #2F75B5
 
   // ══ HEADER ══
-  // Bande orange pleine en haut
-  doc.setFillColor(...ORANGE);
-  doc.rect(0, 0, W, 38, 'F');
+  // Fond blanc (pas de bande colorée)
 
-  // Nom société
-  doc.setFont('helvetica', 'bold');
+  // Nom société en bleu italique
+  doc.setFont('helvetica', 'bolditalic');
   doc.setFontSize(22);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(...BLUE);
   doc.text('TRANSMANUTENTION', margin, 16);
 
-  // Sous-titre société (numéro établissement)
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(255, 220, 200);
-  doc.text('Établissement N° 50156', margin, 23);
-
-  // Titre du document (à droite dans la bande)
+  // Titre du document (à droite)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(50, 55, 70);
   const titleStr = 'DEMANDE DE CONGÉS ' + year;
   const titleW = doc.getTextWidth(titleStr);
-  doc.text(titleStr, W - margin - titleW, 23);
+  doc.text(titleStr, W - margin - titleW, 16);
 
-  // Ligne de séparation sous header
-  doc.setDrawColor(...ORANGE);
+  // Ligne bleue pleine largeur sous le titre
+  doc.setDrawColor(...BLUE);
   doc.setLineWidth(1.2);
-  doc.line(0, 38, W, 38);
+  doc.line(0, 22, W, 22);
 
   // ══ CORPS ══
-  let y = 54;
+  let y = 34;
   const fieldH = 18;
   const labelH = 5;
   const col1x = margin;
-  const col2x = W / 2 + 4;
+  const col3W = (W - 2 * margin - 8) / 3; // 3 colonnes égales
+  const col2x = col1x + col3W + 4;
+  const col3x = col2x + col3W + 4;
+  const col2old = W / 2 + 4;
   const colW  = W / 2 - margin - 4;
 
   function drawField(x, fy, w, label, value) {
@@ -1080,8 +1075,8 @@ function generateFicheConges() {
     doc.setDrawColor(200, 205, 215);
     doc.setLineWidth(0.4);
     doc.roundedRect(x, fy, w, fieldH, 2, 2, 'S');
-    // Barre colorée à gauche
-    doc.setFillColor(...ORANGE);
+    // Barre colorée à gauche (bleue)
+    doc.setFillColor(...BLUE);
     doc.rect(x, fy, 3, fieldH, 'F');
     // Label
     doc.setFont('helvetica', 'normal');
@@ -1095,18 +1090,15 @@ function generateFicheConges() {
     doc.text(String(value || '—'), x + 6, fy + labelH + 7);
   }
 
-  // Ligne 1 : MATRICULE | NOM
-  drawField(col1x, y, colW, 'Matricule', worker.matricule || '—');
-  drawField(col2x, y, colW, 'Nom', worker.lastName);
-  y += fieldH + 6;
-
-  // Ligne 2 : PRÉNOM (pleine largeur)
-  drawField(col1x, y, W - 2 * margin, 'Prénom', worker.firstName);
+  // Ligne 1 : MATRICULE | NOM | PRÉNOM (sur une seule ligne)
+  drawField(col1x, y, col3W, 'Matricule', worker.matricule || '—');
+  drawField(col2x, y, col3W, 'Nom', worker.lastName);
+  drawField(col3x, y, col3W, 'Prénom', worker.firstName);
   y += fieldH + 6;
 
   // Ligne 3 : DU | AU
   drawField(col1x, y, colW, 'Du', duFR);
-  drawField(col2x, y, colW, 'Au', auFR);
+  drawField(col2old, y, colW, 'Au', auFR);
   y += fieldH + 6;
 
   // Ligne 4 : NOMBRE DE JOURS (pleine largeur, valeur plus grande)
@@ -1115,7 +1107,7 @@ function generateFicheConges() {
   doc.setDrawColor(200, 205, 215);
   doc.setLineWidth(0.4);
   doc.roundedRect(col1x, y, W - 2 * margin, fieldH + 4, 2, 2, 'S');
-  doc.setFillColor(...ORANGE);
+  doc.setFillColor(...BLUE);
   doc.rect(col1x, y, 3, fieldH + 4, 'F');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -1123,7 +1115,7 @@ function generateFicheConges() {
   doc.text('NOMBRE DE JOURS', col1x + 6, y + labelH);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.setTextColor(...ORANGE);
+  doc.setTextColor(...BLUE);
   doc.text(nbJoursStr, col1x + 6, y + labelH + 8);
   y += fieldH + 4 + 6;
 
@@ -1136,16 +1128,16 @@ function generateFicheConges() {
 
   // Zone signature
   doc.setFillColor(248, 248, 252);
-  doc.roundedRect(col2x, sigY, colW, sigH, 2, 2, 'F');
+  doc.roundedRect(col2old, sigY, colW, sigH, 2, 2, 'F');
   doc.setDrawColor(200, 205, 215);
   doc.setLineWidth(0.4);
-  doc.roundedRect(col2x, sigY, colW, sigH, 2, 2, 'S');
-  doc.setFillColor(...ORANGE);
-  doc.rect(col2x, sigY, 3, sigH, 'F');
+  doc.roundedRect(col2old, sigY, colW, sigH, 2, 2, 'S');
+  doc.setFillColor(...BLUE);
+  doc.rect(col2old, sigY, 3, sigH, 'F');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(140, 140, 155);
-  doc.text('SIGNATURE', col2x + 6, sigY + labelH);
+  doc.text('SIGNATURE', col2old + 6, sigY + labelH);
 
   y = sigY + sigH + 10;
 
@@ -1153,9 +1145,9 @@ function generateFicheConges() {
   if (_cmSelections.length > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(...ORANGE);
-    doc.text('DÉTAIL DES PLAGES', col1x, y);
-    doc.setDrawColor(...ORANGE);
+    doc.setTextColor(...BLUE);
+    doc.text('DÉTAILS DES CONGÉS', col1x, y);
+    doc.setDrawColor(...BLUE);
     doc.setLineWidth(0.6);
     doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
     y += 8;
@@ -1178,7 +1170,7 @@ function generateFicheConges() {
       theme: 'grid',
       margin: { left: col1x, right: margin },
       headStyles: {
-        fillColor: ORANGE,
+        fillColor: BLUE,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,
