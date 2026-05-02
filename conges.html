@@ -53,6 +53,7 @@ main { display: flex; flex: 1; min-height: 0; }
 .abs-table thead tr th { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 4px 2px; text-align: center; color: var(--text); font-size: 0.6rem; height: 32px; box-sizing: border-box; font-weight: 700; border-bottom: 2px solid var(--border2); }
 .abs-table thead tr th.member-cell { position: sticky; left: 0; z-index: 3; text-align: left; padding-left: 10px; }
 .abs-table thead tr th.day-th { border-left: 1px solid rgba(255,255,255,0.08); background-color: var(--surface); background-blend-mode: normal; }
+.abs-table thead tr.week-row th { height: 5px !important; max-height: 5px !important; padding: 0 !important; line-height: 5px !important; border-bottom: none !important; font-size: 0 !important; }
 .abs-table tbody tr td { padding: 0; text-align: center; height: 28px; box-sizing: border-box; border: none; }
 .abs-table tbody tr td.member-cell { position: sticky; left: 0; z-index: 1; background: var(--surface); padding: 1px 6px 1px 10px; }
 .abs-table tbody tr td.day-cell {
@@ -496,7 +497,7 @@ function renderAbsences() {
     // pour la couleur : on colore uniquement les cellules de jours vacances.
     // Approche : on génère les th par bloc de semaine, mais on découpe
     // le bloc en sous-blocs contigus vac/non-vac pour colorier précisément.
-    let weekRow = '<tr><th class="member-cell" style="border-top:none;border-left:none;border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);background:transparent;"></th>';
+    let weekRow = '<tr class="week-row"><th class="member-cell" style="border-top:none;border-left:none;border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);background:transparent;"></th>';
     weekBlocks.forEach(wb => {
         // Découper le bloc de semaine en sous-blocs contigus vac/non-vac
         const subBlocks = [];
@@ -658,8 +659,8 @@ async function generateAbsPDF() {
   const BLUE_H  = [30, 100, 220];
   const RED_H   = [220, 30, 70];
   const GREY_BG = [235, 238, 242];
-  const SAT_BG  = [180, 215, 255];
-  const SUN_BG  = [255, 180, 195];
+  const SAT_BG  = [155, 194, 230];
+  const SUN_BG  = [255, 117, 117];
   const HDR_BG  = [245, 246, 248];
 
   const today = new Date().toLocaleDateString('fr-FR');
