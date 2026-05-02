@@ -268,6 +268,7 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
   display: none; align-items: center; justify-content: center; z-index: 1200;
 }
 #conge-confirm-overlay.show { display: flex; }
+#pdf-month-select-overlay.show { display: flex; }
 #conge-confirm-box {
   background: var(--surface); border: 1px solid var(--border2);
   border-radius: 12px; padding: 20px 24px; max-width: 340px; width: 94%;
@@ -398,6 +399,26 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
   </div>
 </div>
 
+<!-- ── MODALE SÉLECTION MOIS PDF ── -->
+<div id="pdf-month-select-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1300;backdrop-filter:blur(4px);">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:22px 24px;width:min(94vw,360px);display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--text);">🖨 Choisir les mois à imprimer</div>
+    <!-- Sélecteur d'année -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
+      <button onclick="changePdfYear(-1)" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:1rem;">‹</button>
+      <span id="pdf-sel-year" data-year="" style="font-size:0.85rem;font-weight:700;color:var(--text);min-width:50px;text-align:center;"></span>
+      <button onclick="changePdfYear(1)" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:1rem;">›</button>
+    </div>
+    <!-- Grille des mois -->
+    <div id="pdf-month-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;"></div>
+    <!-- Actions -->
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <button onclick="closePdfMonthSelect()" style="padding:7px 16px;border-radius:8px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:inherit;font-size:0.74rem;">Annuler</button>
+      <button onclick="generateAbsPDF()" style="padding:7px 16px;border-radius:8px;font-weight:700;cursor:pointer;border:none;background:var(--accent);color:#000;font-family:inherit;font-size:0.74rem;">📄 Générer PDF</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <script src="shared.js"></script>
 <script>
@@ -497,55 +518,259 @@ function renderAbsences() {
     });
 }
 
-// ── PDF ABSENCES ──
+// ── PDF ABSENCES — sélection des mois puis génération jsPDF ──
 function printAbsPDF() {
-  const startOfMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth(), 1);
-  const daysInMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 0).getDate();
-  const monthLabel = state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  // Ouvre la modale de sélection des mois
+  const overlay = document.getElementById('pdf-month-select-overlay');
+  if (!overlay) return;
 
-  const order = state.config.absOrder || state.staff.map(w => w.id);
+  // Pré-coche le mois courant
+  const curY = state.absMonth.getFullYear();
+  const curM = state.absMonth.getMonth();
+  overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    const m = parseInt(cb.dataset.month);
+    const y = parseInt(cb.dataset.year);
+    cb.checked = (m === curM && y === curY);
+  });
+  // Met à jour l'année affichée
+  document.getElementById('pdf-sel-year').textContent = curY;
+  document.getElementById('pdf-sel-year').dataset.year = curY;
+  renderPdfMonthCheckboxes(curY);
+
+  overlay.classList.add('show');
+}
+
+function renderPdfMonthCheckboxes(year) {
+  const grid = document.getElementById('pdf-month-grid');
+  if (!grid) return;
+  const MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  grid.innerHTML = MONTHS_LONG.map((name, i) =>
+    `<label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.73rem;font-weight:600;color:var(--text2);transition:background .1s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" data-month="${i}" data-year="${year}" style="accent-color:var(--accent);width:13px;height:13px;">
+      ${name}
+    </label>`
+  ).join('');
+}
+
+function closePdfMonthSelect() {
+  document.getElementById('pdf-month-select-overlay').classList.remove('show');
+}
+window.closePdfMonthSelect = closePdfMonthSelect;
+
+function changePdfYear(delta) {
+  const el = document.getElementById('pdf-sel-year');
+  const y = parseInt(el.dataset.year) + delta;
+  el.dataset.year = y;
+  el.textContent = y;
+  renderPdfMonthCheckboxes(y);
+}
+window.changePdfYear = changePdfYear;
+
+async function generateAbsPDF() {
+  const grid = document.getElementById('pdf-month-grid');
+  const checked = [...grid.querySelectorAll('input[type=checkbox]:checked')];
+  if (checked.length === 0) { toast('Sélectionnez au moins un mois', 'error'); return; }
+
+  closePdfMonthSelect();
+
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  const colorMapRGB = {
+    rouge: [255, 77, 109], violet: [167, 139, 250],
+    vert:  [0, 200, 150],  bleu:   [59, 143, 255],
+    jaune: [255, 208, 96]
+  };
+  const BLUE_H  = [59, 143, 255];   // entête jours samedi
+  const RED_H   = [255, 77, 109];   // entête jours dim/JF
+  const GREY_BG = [230, 232, 236];  // fond jour avec congé
+  const SAT_BG  = [232, 240, 253];  // fond samedi
+  const SUN_BG  = [253, 232, 236];  // fond dim/JF
+  const HDR_BG  = [245, 246, 248];  // fond entête jours normaux
+  const BLUE_PDF= [47, 117, 181];   // bleu Transmanutention
+
+  const today = new Date().toLocaleDateString('fr-FR');
+  const MONTHS_LONG_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  const order    = state.config.absOrder || state.staff.map(w => w.id);
   const printSet = new Set(state.config.absPrint !== undefined ? state.config.absPrint : state.staff.map(w => w.id));
   const staffSorted = [...order].map(id => state.staff.find(w => w.id === id)).filter(Boolean);
   state.staff.forEach(w => { if (!staffSorted.find(s => s.id === w.id)) staffSorted.push(w); });
   const printStaff = staffSorted.filter(w => printSet.has(w.id));
 
-  const colorMap = { rouge:'#ff4d6d', violet:'#a78bfa', vert:'#00c896', bleu:'#3b8fff', jaune:'#ffd060' };
+  // Trier les mois sélectionnés par ordre chronologique
+  const months = checked
+    .map(cb => ({ year: parseInt(cb.dataset.year), month: parseInt(cb.dataset.month) }))
+    .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
 
-  let thDays = '';
-  for (let i = 1; i <= daysInMonth; i++) {
-    const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
-    const dow = d.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 2);
-    const isSat = d.getDay() === 6;
-    const isSun = d.getDay() === 0;
-    const isFerie = !!state.holidays[fmtISO(d)];
-    const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#f5f5f5';
-    thDays += '<th style="background:' + bg + ';width:22px;font-size:8px;padding:2px 0;">' + i + '<br><span style="font-weight:400;font-size:7px">' + dow + '</span></th>';
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = 297, H = 210;
+  const marginL = 8, marginR = 8, marginT = 14;
+  const footerY = H - 5;
+
+  for (let pi = 0; pi < months.length; pi++) {
+    if (pi > 0) doc.addPage();
+
+    const { year, month } = months[pi];
+    const startOfMonth = new Date(year, month, 1);
+    const daysInMonth  = new Date(year, month + 1, 0).getDate();
+    const monthLabel   = MONTHS_LONG_FR[month] + ' ' + year;
+
+    // Charger les données du mois si besoin
+    const tmpMonth = new Date(year, month, 1);
+    await fetchSchoolHolidays(tmpMonth);
+    await loadAbsencesForMonth(tmpMonth);
+
+    // ── Titre centré ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30, 35, 50);
+    const titleW2 = doc.getTextWidth(monthLabel.toUpperCase());
+    doc.text(monthLabel.toUpperCase(), (W - titleW2) / 2, 9);
+
+    // ── Calcul des dimensions ──
+    const usableW   = W - marginL - marginR;
+    const nameColW  = 38;   // largeur colonne nom/matricule
+    const dayColW   = (usableW - nameColW) / daysInMonth;
+    const rowH      = 8;    // hauteur chaque ligne membre
+    const hdrH      = 10;   // hauteur entête jours
+    const liserH    = rowH; // hauteur totale de la carte membre
+
+    // ── En-tête des jours ──
+    let cx = marginL + nameColW;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date   = new Date(year, month, d);
+      const isSat  = date.getDay() === 6;
+      const isSun  = date.getDay() === 0;
+      const isFer  = !!state.holidays[fmtISO(date)];
+      const dow    = date.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 2);
+
+      if (isSun || isFer) {
+        doc.setFillColor(...SUN_BG);
+      } else if (isSat) {
+        doc.setFillColor(...SAT_BG);
+      } else {
+        doc.setFillColor(...HDR_BG);
+      }
+      doc.rect(cx, marginT, dayColW, hdrH, 'F');
+      doc.setDrawColor(210, 212, 218);
+      doc.setLineWidth(0.2);
+      doc.rect(cx, marginT, dayColW, hdrH, 'S');
+
+      // Numéro du jour
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6);
+      if (isSun || isFer) doc.setTextColor(...RED_H);
+      else if (isSat)    doc.setTextColor(...BLUE_H);
+      else               doc.setTextColor(50, 55, 70);
+      const dStr = String(d);
+      const dW   = doc.getTextWidth(dStr);
+      doc.text(dStr, cx + (dayColW - dW) / 2, marginT + 4);
+
+      // Jour de la semaine
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(4.5);
+      doc.setTextColor(130, 140, 155);
+      const dowW = doc.getTextWidth(dow);
+      doc.text(dow, cx + (dayColW - dowW) / 2, marginT + 8);
+
+      cx += dayColW;
+    }
+
+    // Colonne nom — entête
+    doc.setFillColor(...HDR_BG);
+    doc.rect(marginL, marginT, nameColW, hdrH, 'F');
+    doc.setDrawColor(210, 212, 218);
+    doc.setLineWidth(0.2);
+    doc.rect(marginL, marginT, nameColW, hdrH, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 110, 125);
+    doc.text('PERSONNEL', marginL + 3, marginT + 6);
+
+    // ── Lignes membres ──
+    let ry = marginT + hdrH + 2;
+    printStaff.forEach((w, wi) => {
+      const colorKey   = state.config.workerColors?.[w.id];
+      const liserColor = colorKey ? colorMapRGB[colorKey] : [180, 185, 195];
+
+      // Carte membre : fond blanc + liseré gauche coloré
+      doc.setFillColor(252, 252, 254);
+      doc.roundedRect(marginL, ry, nameColW, liserH, 1, 1, 'F');
+      doc.setDrawColor(220, 222, 228);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(marginL, ry, nameColW, liserH, 1, 1, 'S');
+      // Liseré coloré
+      doc.setFillColor(...liserColor);
+      doc.rect(marginL, ry, 2.5, liserH, 'F');
+
+      // Nom + prénom
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6);
+      doc.setTextColor(30, 35, 50);
+      const fullName = w.lastName + ' ' + w.firstName;
+      doc.text(fullName.substring(0, 18), marginL + 5, ry + 4.5);
+      // Matricule
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(4.5);
+      doc.setTextColor(140, 150, 165);
+      doc.text(w.matricule || '', marginL + 5, ry + 7);
+
+      // Cellules jours
+      cx = marginL + nameColW;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date    = new Date(year, month, d);
+        const iso     = fmtISO(date);
+        const apiCode = state.absences[w.id]?.[iso] || '';
+        const manCode = state.manualConges[w.id]?.[iso] || '';
+        const code    = apiCode || manCode;
+        const isSat   = date.getDay() === 6;
+        const isSun   = date.getDay() === 0;
+        const isFer   = !!state.holidays[iso];
+
+        if (code) {
+          doc.setFillColor(...GREY_BG);
+        } else if (isSun || isFer) {
+          doc.setFillColor(...SUN_BG);
+        } else if (isSat) {
+          doc.setFillColor(...SAT_BG);
+        } else {
+          doc.setFillColor(255, 255, 255);
+        }
+        doc.rect(cx, ry, dayColW, liserH, 'F');
+        doc.setDrawColor(210, 212, 218);
+        doc.setLineWidth(0.15);
+        doc.rect(cx, ry, dayColW, liserH, 'S');
+
+        if (code) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(5);
+          doc.setTextColor(30, 35, 50);
+          const cW = doc.getTextWidth(code);
+          doc.text(code, cx + (dayColW - cW) / 2, ry + liserH / 2 + 1.5);
+        }
+        cx += dayColW;
+      }
+
+      ry += liserH + 1.5;
+    });
+
+    // ── Pied de page ──
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(170, 170, 180);
+    doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', marginL, footerY);
+    // Page number
+    doc.setTextColor(170, 170, 180);
+    const pgStr = (pi + 1) + ' / ' + months.length;
+    const pgW   = doc.getTextWidth(pgStr);
+    doc.text(pgStr, W - marginR - pgW, footerY);
   }
 
-  let bodyRows = '';
-  printStaff.forEach(w => {
-    const colorKey = state.config.workerColors?.[w.id];
-    const borderColor = colorKey ? colorMap[colorKey] : '#ccc';
-    let tds = '';
-    for (let i = 1; i <= daysInMonth; i++) {
-      const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
-      const dateISO = fmtISO(d);
-      const code = state.absences[w.id]?.[dateISO] || '';
-      const isSat = d.getDay() === 6;
-      const isSun = d.getDay() === 0;
-      const isFerie = !!state.holidays[dateISO];
-      const bg = (isSun || isFerie) ? '#fde8ec' : isSat ? '#e8f0fd' : '#fff';
-      tds += '<td style="background:' + bg + ';text-align:center;font-size:8px;font-weight:700;color:#d04000;padding:0;">' + code + '</td>';
-    }
-    bodyRows += '<tr><td style="border-left:3px solid ' + borderColor + ';padding:3px 6px;white-space:nowrap;"><div style="font-size:9px;font-weight:700;">' + w.lastName + ' ' + w.firstName + '</div><div style="font-size:7px;color:#888;font-family:monospace;">' + (w.matricule || '') + '</div></td>' + tds + '</tr>';
-  });
-
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Absences – ' + monthLabel + '</title><style>body{font-family:Arial,sans-serif;margin:10mm;}h2{font-size:13px;margin-bottom:8px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;}th{text-align:center;}@media print{@page{size:A4 landscape;margin:8mm;}}</style></head><body><h2>Suivi des absences – ' + monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) + '</h2><table><thead><tr><th style="text-align:left;padding:3px 6px;font-size:9px;background:#f5f5f5;white-space:nowrap;">Personnel</th>' + thDays + '</tr></thead><tbody>' + bodyRows + '</tbody></table><script>window.onload=function(){window.print();}<\/script></body></html>';
-
-  const w2 = window.open('', '_blank');
-  w2.document.write(html);
-  w2.document.close();
+  const fileName = 'Conges_' + months.map(m => MONTHS_LONG_FR[m.month].substring(0,3) + m.year).join('-') + '.pdf';
+  doc.save(fileName);
 }
+window.generateAbsPDF = generateAbsPDF;
 
 // ── MONTH PICKER ──
 function renderMonthPicker() {
@@ -633,6 +858,9 @@ document.querySelectorAll('.cfg-module-btn').forEach(function(btn) {
   });
 });
 document.getElementById('btn-print-abs').addEventListener('click', printAbsPDF);
+document.getElementById('pdf-month-select-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closePdfMonthSelect();
+});
 
 // ✅ CORRECTION : Créer un nouveau Date au lieu de modifier l'existant
 document.getElementById('btn-abs-prev').addEventListener('click', async function() {
