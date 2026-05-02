@@ -991,6 +991,8 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
     doc.setFillColor(...secRGB);
     doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
+    // Rempli les coins bas arrondis du titre pour qu'il se colle à l'horaire
+    doc.rect(margin, y + secTitleH - 2, cardW, 2, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(255, 255, 255);
@@ -1136,7 +1138,7 @@ async function generateDayPDF(dayIdx) {
   doc.text(titreBase, margin, 29);
 
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 90, 110);
+  doc.setTextColor(30, 35, 50);
   doc.text(titreSuite, margin + baseW * scale, 29);
 
   _pdfRenderDay(doc, dayIdx, W, margin, 36);
@@ -1245,7 +1247,7 @@ async function sendDailyMail(dayIdx) {
 
     const dateLabelLong = pdfResult?.dateLabelLong || addDays(state.weekStart, dayIdx).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
     const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
-    const body = `Bonjour,\nCi-joint Effectif Parc Réception Roulier pour le ${dateLabelLong}.`;
+    const body = `Bonjour,\n\nCi-joint Effectif Parc Réception Roulier pour le ${dateLabelLong}.`;
 
     const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
     const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
