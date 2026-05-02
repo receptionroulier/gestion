@@ -1387,28 +1387,18 @@ function generateFicheConges() {
     doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
     y += 8;
 
-    // Regrouper par code : { CP: [{from, to}, ...], FE: [...] }
-    const byCode = {};
-    _cmSelections.forEach(sel => {
+    // Une ligne par plage sélectionnée, jours comptés par code principal
+    const tableRows = _cmSelections.map(sel => {
       const mainCode = sel.code;
-      if (!byCode[mainCode]) byCode[mainCode] = [];
-      byCode[mainCode].push({ from: sel.from, to: sel.to, days: sel.days });
-    });
-
-    const tableRows = [];
-    Object.entries(byCode).forEach(([code, plages]) => {
-      plages.forEach(p => {
-        const n = Object.values(p.days).filter(c => c === code).length;
-        const dateStr = p.from === p.to
-          ? isoToFR(p.from)
-          : isoToFR(p.from) + ' → ' + isoToFR(p.to);
-        tableRows.push([code, dateStr, n + ' j']);
-      });
+      const nbJours  = Object.values(sel.days).filter(c => c === mainCode).length;
+      const duStr    = isoToFR(sel.from);
+      const auStr    = sel.from === sel.to ? '—' : isoToFR(sel.to);
+      return [mainCode, duStr, auStr, nbJours + ' j'];
     });
 
     doc.autoTable({
       startY: y,
-      head: [['Code', 'Date(s)', 'Jours']],
+      head: [['Type', 'Du', 'Au', 'Jours']],
       body: tableRows,
       theme: 'grid',
       margin: { left: col1x, right: margin },
@@ -1422,8 +1412,9 @@ function generateFicheConges() {
       alternateRowStyles: { fillColor: [250, 248, 245] },
       columnStyles: {
         0: { cellWidth: 22, fontStyle: 'bold' },
-        1: { cellWidth: 80 },
-        2: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 38 },
+        3: { cellWidth: 22, halign: 'center' },
       }
     });
     y = doc.lastAutoTable.finalY + 10;
