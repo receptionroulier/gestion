@@ -1233,29 +1233,108 @@ async function generateWeeklyPDF() {
 
 async function sendDailyMail(dayIdx) {
     toast('⏳ Génération du PDF en cours…', 'info');
+
+    // 1. Générer le PDF et récupérer le blob base64
     let pdfResult;
+    let pdfBase64;
+    let fileName;
     try {
-        pdfResult = await generateDayPDF(dayIdx);
+        const { jsPDF } = window.jspdf;
+        const d = addDays(state.weekStart, dayIdx);
+        const dateLabelLong = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+        const dateLabelPDF  = dateLabelLong.replace(/\b\w/g, c => c.toUpperCase());
+        const BLUE = [47, 117, 181];
+        const today = new Date().toLocaleDateString('fr-FR');
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const W = 210, margin = 14;
+
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(20);
+        doc.setTextColor(...BLUE);
+        doc.text('TRANSMANUTENTION', margin, 15);
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 20, W - margin, 20);
+
+        const fs = 11;
+        const titreBase  = 'Effectif Équipe Parc Réception Roulier';
+        const titreSuite = '  du  ' + dateLabelPDF;
+        doc.setFontSize(fs);
+        doc.setFont('helvetica', 'bold');
+        const baseW = doc.getTextWidth(titreBase);
+        doc.setFont('helvetica', 'normal');
+        const suiteW = doc.getTextWidth(titreSuite);
+        const totalW = baseW + suiteW;
+        const usable = W - 2 * margin;
+        const scale  = totalW > usable ? usable / totalW : 1;
+        const fsFinal = fs * scale;
+
+        doc.setFontSize(fsFinal);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 35, 50);
+        doc.text(titreBase + titreSuite, margin, 29);
+
+        _pdfRenderDay(doc, dayIdx, W, margin, 36);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.setTextColor(170, 170, 180);
+        doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
+
+        // Sauvegarde locale (chemin configuré ou téléchargement)
+        const dayCapit  = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
+        const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
+        fileName = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
+        await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
+
+        // Extraction base64 pour envoi mail
+        pdfBase64 = doc.output('datauristring').split(',')[1];
+        pdfResult = { dateLabelLong, fileName };
+
     } catch(e) {
+        console.error('[sendDailyMail] Erreur PDF:', e);
         toast('Erreur génération PDF', 'error');
         return;
     }
 
-    const dateLabelLong = pdfResult?.dateLabelLong || addDays(state.weekStart, dayIdx).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-    const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
-    const body = `Bonjour,\n\nCi-joint Effectif Parc Réception Roulier pour le ${dateLabelLong}.`;
+    // 2. Envoi via le worker Cloudflare
+    toast('⏳ Envoi du mail en cours…', 'info');
+    try {
+        const { dateLabelLong } = pdfResult;
+        const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
+        const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\nCordialement,\nGestion Parc Réception Roulier`;
 
-    const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
-    const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const payload = {
+            type: 'sendMail',
+            to: state.config.emailWeek,
+            cc: state.config.emailCcWeek || '',
+            bcc: state.config.emailBccWeek || '',
+            subject,
+            body: bodyText,
+            attachment: {
+                filename: fileName,
+                content: pdfBase64,
+            }
+        };
 
-    const a = document.createElement('a');
-    a.href = mailtoUrl;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 500);
+        const r = await fetch(PLAN_PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await r.json();
 
-    toast(`📧 "${subject}" — ouverture du client mail…`);
+        if (data.ok) {
+            toast('✅ Mail journalier envoyé !');
+        } else {
+            console.error('[sendDailyMail] Erreur worker:', data);
+            toast('Erreur envoi mail : ' + (data.error || 'inconnue'), 'error');
+        }
+    } catch(e) {
+        console.error('[sendDailyMail] Erreur réseau:', e);
+        toast('Erreur réseau lors de l\'envoi', 'error');
+    }
 }
 
 async function sendWeeklyMail() {
