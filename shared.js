@@ -693,6 +693,13 @@ function showConfigModal(module) {
   if (overlay) overlay.classList.add('open');
   if (sidebar) sidebar.classList.add('open');
   if (module && module !== 'mail') openCfgModule(module);
+  // Titre cliquable pour fermer
+  const title = document.getElementById('cfg-sidebar-title');
+  if (title && !title._closeHandlerSet) {
+    title.style.cursor = 'pointer';
+    title.addEventListener('click', closeCfgSidebar);
+    title._closeHandlerSet = true;
+  }
 }
 
 function closeCfgSidebar() {
