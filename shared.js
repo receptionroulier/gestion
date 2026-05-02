@@ -991,23 +991,23 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
     doc.setFillColor(...secRGB);
     doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
-    // Rempli les coins bas arrondis du titre pour qu'il se colle à l'horaire
-    doc.rect(margin, y + secTitleH - 2, cardW, 2, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(255, 255, 255);
     doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
     y += secTitleH;
 
-    // ── Horaire arrondi, centré, collé au titre (pas d'espace) ──
+    // ── Horaire : conteneur arrondi avec bordure (même style que bloc membres) ──
     if (sec.hours) {
       if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
       doc.setFillColor(235, 239, 246);
-      doc.rect(margin, y, cardW, hoursH, 'F'); // pas d'arrondi
+      doc.roundedRect(margin, y, cardW, hoursH, 2, 2, 'F');
+      doc.setDrawColor(...GREY_CARD);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(margin, y, cardW, hoursH, 2, 2, 'S');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(70, 85, 110);
-      // centré horizontalement
       const hW = doc.getTextWidth(sec.hours);
       doc.text(sec.hours, margin + (cardW - hW) / 2, y + 4);
       y += hoursH;
@@ -1135,11 +1135,7 @@ async function generateDayPDF(dayIdx) {
   doc.setFontSize(fsFinal);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 35, 50);
-  doc.text(titreBase, margin, 29);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(30, 35, 50);
-  doc.text(titreSuite, margin + baseW * scale, 29);
+  doc.text(titreBase + titreSuite, margin, 29);
 
   _pdfRenderDay(doc, dayIdx, W, margin, 36);
 
