@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Congés - Parc Réception Roulier</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root {
   --bg: #0a0e14; --surface: #111722; --surface2: #1a2130;
@@ -379,6 +381,7 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
     </div>
     <div class="cm-footer">
       <button class="cm-footer-btn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2);" onclick="closeCongeModal()">Annuler</button>
+      <button class="cm-footer-btn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2);" onclick="generateFicheConges()" title="Générer la fiche PDF TRANSMANUTENTION">📄 Fiche PDF</button>
       <button class="cm-footer-btn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2);" onclick="validateConges(true)" title="Valider et envoyer un email">✉ Mail</button>
       <button class="cm-footer-btn" style="background:var(--accent);color:#000;" onclick="validateConges(false)">✓ Valider</button>
     </div>
@@ -986,6 +989,226 @@ function confirmChoice(yes) {
   if (_cmConfirmCb) { _cmConfirmCb(yes); _cmConfirmCb = null; }
 }
 window.confirmChoice = confirmChoice;
+
+// ── FICHE PDF TRANSMANUTENTION ──
+function generateFicheConges() {
+  if (_cmSelections.length === 0) {
+    toast('Aucune plage sélectionnée', 'error');
+    return;
+  }
+  const worker = getWorker(_cmWorkerId);
+  if (!worker) return;
+
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  // ── Calcul des infos de plage ──
+  // On prend la 1ère plage pour DU/AU, et on additionne les jours principaux
+  const allDays = {};
+  const codeCounts = {};
+  _cmSelections.forEach(sel => {
+    Object.entries(sel.days).forEach(([iso, code]) => {
+      allDays[iso] = code;
+      codeCounts[code] = (codeCounts[code] || 0) + 1;
+    });
+  });
+
+  const sortedISO = Object.keys(allDays).sort();
+  const duISO  = sortedISO[0];
+  const auISO  = sortedISO[sortedISO.length - 1];
+  const duFR   = duISO  ? isoToFR(duISO)  : '—';
+  const auFR   = auISO  ? isoToFR(auISO)  : '—';
+
+  // Résumé du nombre de jours ex: "7 CP + 1 R"
+  const nbJoursStr = Object.entries(codeCounts)
+    .map(([code, n]) => n + ' ' + code)
+    .join(' + ');
+
+  const today = new Date().toLocaleDateString('fr-FR');
+  const year  = new Date().getFullYear();
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, H = 297;
+  const margin = 18;
+
+  // ── COULEUR TRANSMANUTENTION (orange-rouge du logo) ──
+  const ORANGE = [214, 78, 18]; // #D64E12
+
+  // ══ HEADER ══
+  // Bande orange pleine en haut
+  doc.setFillColor(...ORANGE);
+  doc.rect(0, 0, W, 38, 'F');
+
+  // Nom société
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text('TRANSMANUTENTION', margin, 16);
+
+  // Sous-titre société (numéro établissement)
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(255, 220, 200);
+  doc.text('Établissement N° 50156', margin, 23);
+
+  // Titre du document (à droite dans la bande)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  const titleStr = 'DEMANDE DE CONGÉS ' + year;
+  const titleW = doc.getTextWidth(titleStr);
+  doc.text(titleStr, W - margin - titleW, 23);
+
+  // Ligne de séparation sous header
+  doc.setDrawColor(...ORANGE);
+  doc.setLineWidth(1.2);
+  doc.line(0, 38, W, 38);
+
+  // ══ CORPS ══
+  let y = 54;
+  const fieldH = 18;
+  const labelH = 5;
+  const col1x = margin;
+  const col2x = W / 2 + 4;
+  const colW  = W / 2 - margin - 4;
+
+  function drawField(x, fy, w, label, value) {
+    // Fond léger
+    doc.setFillColor(248, 248, 252);
+    doc.roundedRect(x, fy, w, fieldH, 2, 2, 'F');
+    // Bordure
+    doc.setDrawColor(200, 205, 215);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(x, fy, w, fieldH, 2, 2, 'S');
+    // Barre colorée à gauche
+    doc.setFillColor(...ORANGE);
+    doc.rect(x, fy, 3, fieldH, 'F');
+    // Label
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 155);
+    doc.text(label.toUpperCase(), x + 6, fy + labelH);
+    // Valeur
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 35, 50);
+    doc.text(String(value || '—'), x + 6, fy + labelH + 7);
+  }
+
+  // Ligne 1 : MATRICULE | NOM
+  drawField(col1x, y, colW, 'Matricule', worker.matricule || '—');
+  drawField(col2x, y, colW, 'Nom', worker.lastName);
+  y += fieldH + 6;
+
+  // Ligne 2 : PRÉNOM (pleine largeur)
+  drawField(col1x, y, W - 2 * margin, 'Prénom', worker.firstName);
+  y += fieldH + 6;
+
+  // Ligne 3 : DU | AU
+  drawField(col1x, y, colW, 'Du', duFR);
+  drawField(col2x, y, colW, 'Au', auFR);
+  y += fieldH + 6;
+
+  // Ligne 4 : NOMBRE DE JOURS (pleine largeur, valeur plus grande)
+  doc.setFillColor(248, 248, 252);
+  doc.roundedRect(col1x, y, W - 2 * margin, fieldH + 4, 2, 2, 'F');
+  doc.setDrawColor(200, 205, 215);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(col1x, y, W - 2 * margin, fieldH + 4, 2, 2, 'S');
+  doc.setFillColor(...ORANGE);
+  doc.rect(col1x, y, 3, fieldH + 4, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(140, 140, 155);
+  doc.text('NOMBRE DE JOURS', col1x + 6, y + labelH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(...ORANGE);
+  doc.text(nbJoursStr, col1x + 6, y + labelH + 8);
+  y += fieldH + 4 + 6;
+
+  // Ligne 5 : DATE (Fait le) | SIGNATURE
+  const sigY = y;
+  const sigH = 32;
+
+  // Fait le
+  drawField(col1x, sigY, colW, 'Fait le', today);
+
+  // Zone signature
+  doc.setFillColor(248, 248, 252);
+  doc.roundedRect(col2x, sigY, colW, sigH, 2, 2, 'F');
+  doc.setDrawColor(200, 205, 215);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(col2x, sigY, colW, sigH, 2, 2, 'S');
+  doc.setFillColor(...ORANGE);
+  doc.rect(col2x, sigY, 3, sigH, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(140, 140, 155);
+  doc.text('SIGNATURE', col2x + 6, sigY + labelH);
+
+  y = sigY + sigH + 10;
+
+  // ══ DÉTAIL DES PLAGES ══
+  if (_cmSelections.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...ORANGE);
+    doc.text('DÉTAIL DES PLAGES', col1x, y);
+    doc.setDrawColor(...ORANGE);
+    doc.setLineWidth(0.6);
+    doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
+    y += 8;
+
+    const tableRows = _cmSelections.map(sel => {
+      const mainCode = sel.code;
+      const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
+      return [
+        mainCode,
+        isoToFR(sel.from),
+        isoToFR(sel.to),
+        mainDays + ' j'
+      ];
+    });
+
+    doc.autoTable({
+      startY: y,
+      head: [['Type', 'Du', 'Au', 'Jours']],
+      body: tableRows,
+      theme: 'grid',
+      margin: { left: col1x, right: margin },
+      headStyles: {
+        fillColor: ORANGE,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      bodyStyles: { fontSize: 9, textColor: [30, 35, 50] },
+      alternateRowStyles: { fillColor: [250, 248, 245] },
+      columnStyles: {
+        0: { cellWidth: 22, fontStyle: 'bold' },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 38 },
+        3: { cellWidth: 22, halign: 'center' },
+      }
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+
+  // ══ PIED DE PAGE ══
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(170, 170, 180);
+  doc.text('Document généré le ' + today + ' — TRANSMANUTENTION', margin, H - 10);
+
+  // ══ SAUVEGARDE ══
+  const safeName = (worker.lastName + '-' + worker.firstName + '-' + (worker.matricule || 'X'))
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9-]/g, '_');
+  const fileName = 'Feuille_Conges_' + safeName + '.pdf';
+  doc.save(fileName);
+}
+window.generateFicheConges = generateFicheConges;
 
 // ── VALIDATION ──
 async function validateConges(sendMail = false) {
