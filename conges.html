@@ -1043,21 +1043,21 @@ function generateFicheConges() {
   doc.setTextColor(...BLUE);
   doc.text('TRANSMANUTENTION', margin, 16);
 
-  // Titre du document (à droite)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(50, 55, 70);
-  const titleStr = 'DEMANDE DE CONGÉS ' + year;
-  const titleW = doc.getTextWidth(titleStr);
-  doc.text(titleStr, W - margin - titleW, 16);
-
-  // Ligne bleue de marge à marge sous le titre
+  // Ligne bleue de marge à marge sous TRANSMANUTENTION
   doc.setDrawColor(...BLUE);
   doc.setLineWidth(0.5);
   doc.line(margin, 22, W - margin, 22);
 
+  // Titre du document (à droite, sous la ligne)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(50, 55, 70);
+  const titleStr = 'DEMANDE DE CONGÉS ' + year;
+  const titleW = doc.getTextWidth(titleStr);
+  doc.text(titleStr, W - margin - titleW, 28);
+
   // ══ CORPS ══
-  let y = 34;
+  let y = 38;
   const fieldH = 18;
   const labelH = 5;
   const col1x = margin;
@@ -1101,23 +1101,30 @@ function generateFicheConges() {
   drawField(col2old, y, colW, 'Au', auFR);
   y += fieldH + 6;
 
-  // Ligne 4 : NOMBRE DE JOURS (pleine largeur, valeur plus grande)
+  // Ligne 4 : NOMBRE DE JOURS — un code par ligne en vertical
+  const codeEntries = Object.entries(codeCounts); // [[code, n], ...]
+  const nbLignes = codeEntries.length;
+  const nbFieldH = Math.max(fieldH + 4, 8 + nbLignes * 9);
   doc.setFillColor(248, 248, 252);
-  doc.roundedRect(col1x, y, W - 2 * margin, fieldH + 4, 2, 2, 'F');
+  doc.roundedRect(col1x, y, W - 2 * margin, nbFieldH, 2, 2, 'F');
   doc.setDrawColor(200, 205, 215);
   doc.setLineWidth(0.4);
-  doc.roundedRect(col1x, y, W - 2 * margin, fieldH + 4, 2, 2, 'S');
+  doc.roundedRect(col1x, y, W - 2 * margin, nbFieldH, 2, 2, 'S');
   doc.setFillColor(...BLUE);
-  doc.rect(col1x, y, 3, fieldH + 4, 'F');
+  doc.rect(col1x, y, 3, nbFieldH, 'F');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(140, 140, 155);
   doc.text('NOMBRE DE JOURS', col1x + 6, y + labelH);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(...BLUE);
-  doc.text(nbJoursStr, col1x + 6, y + labelH + 8);
-  y += fieldH + 4 + 6;
+  let lineY = y + labelH + 6;
+  codeEntries.forEach(([code, n]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...BLUE);
+    doc.text(n + ' ' + code, col1x + 6, lineY);
+    lineY += 9;
+  });
+  y += nbFieldH + 6;
 
   // Ligne 5 : DATE (Fait le) | SIGNATURE
   const sigY = y;
@@ -1141,7 +1148,7 @@ function generateFicheConges() {
 
   y = sigY + sigH + 10;
 
-  // ══ DÉTAIL DES PLAGES ══
+  // ══ DÉTAILS DES CONGÉS ══
   if (_cmSelections.length > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
@@ -1152,20 +1159,28 @@ function generateFicheConges() {
     doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
     y += 8;
 
-    const tableRows = _cmSelections.map(sel => {
+    // Regrouper par code : { CP: [{from, to}, ...], FE: [...] }
+    const byCode = {};
+    _cmSelections.forEach(sel => {
       const mainCode = sel.code;
-      const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
-      return [
-        mainCode,
-        isoToFR(sel.from),
-        isoToFR(sel.to),
-        mainDays + ' j'
-      ];
+      if (!byCode[mainCode]) byCode[mainCode] = [];
+      byCode[mainCode].push({ from: sel.from, to: sel.to, days: sel.days });
+    });
+
+    const tableRows = [];
+    Object.entries(byCode).forEach(([code, plages]) => {
+      plages.forEach(p => {
+        const n = Object.values(p.days).filter(c => c === code).length;
+        const dateStr = p.from === p.to
+          ? isoToFR(p.from)
+          : isoToFR(p.from) + ' → ' + isoToFR(p.to);
+        tableRows.push([code, dateStr, n + ' j']);
+      });
     });
 
     doc.autoTable({
       startY: y,
-      head: [['Type', 'Du', 'Au', 'Jours']],
+      head: [['Code', 'Date(s)', 'Jours']],
       body: tableRows,
       theme: 'grid',
       margin: { left: col1x, right: margin },
@@ -1179,9 +1194,8 @@ function generateFicheConges() {
       alternateRowStyles: { fillColor: [250, 248, 245] },
       columnStyles: {
         0: { cellWidth: 22, fontStyle: 'bold' },
-        1: { cellWidth: 38 },
-        2: { cellWidth: 38 },
-        3: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 22, halign: 'center' },
       }
     });
     y = doc.lastAutoTable.finalY + 10;
