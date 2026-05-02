@@ -1396,37 +1396,64 @@ function generateFicheConges() {
     doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
     y += 8;
 
-    // Une ligne par plage sélectionnée, jours comptés par code principal
-    const tableRows = _cmSelections.map(sel => {
+    // Colonnes
+    const tC1 = col1x,        tW1 = 20;  // Type
+    const tC2 = tC1 + tW1,    tW2 = 40;  // Du
+    const tC3 = tC2 + tW2,    tW3 = 40;  // Au
+    const tC4 = tC3 + tW3,    tW4 = 20;  // Jours
+    const tRowH = 8;
+    const tTotalW = tW1 + tW2 + tW3 + tW4;
+
+    // En-tête
+    doc.setFillColor(...BLUE);
+    doc.rect(tC1, y, tTotalW, tRowH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Type', tC1 + 2, y + 5.5);
+    doc.text('Du',   tC2 + 2, y + 5.5);
+    doc.text('Au',   tC3 + 2, y + 5.5);
+    doc.text('Jours',tC4 + 2, y + 5.5);
+    y += tRowH;
+
+    // Lignes données
+    _cmSelections.forEach((sel, idx) => {
       const mainCode = sel.code;
       const nbJours  = Object.values(sel.days).filter(c => c === mainCode).length;
       const duStr    = isoToFR(sel.from);
       const auStr    = sel.from === sel.to ? '—' : isoToFR(sel.to);
-      return [mainCode, duStr, auStr, nbJours + ' j'];
+
+      // Fond alterné
+      doc.setFillColor(idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 245);
+      doc.rect(tC1, y, tTotalW, tRowH, 'F');
+      // Bordure bas
+      doc.setDrawColor(220, 222, 228);
+      doc.setLineWidth(0.2);
+      doc.line(tC1, y + tRowH, tC1 + tTotalW, y + tRowH);
+      // Séparateurs verticaux
+      [tC2, tC3, tC4].forEach(cx => {
+        doc.line(cx, y, cx, y + tRowH);
+      });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...BLUE);
+      doc.text(mainCode, tC1 + 2, y + 5.5);
+      doc.setTextColor(30, 35, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.text(duStr,          tC2 + 2, y + 5.5);
+      doc.text(auStr,          tC3 + 2, y + 5.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(nbJours + ' j', tC4 + 2, y + 5.5);
+      y += tRowH;
     });
 
-    doc.autoTable({
-      startY: y,
-      head: [['Type', 'Du', 'Au', 'Jours']],
-      body: tableRows,
-      theme: 'grid',
-      margin: { left: col1x, right: margin },
-      headStyles: {
-        fillColor: BLUE,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 8,
-      },
-      bodyStyles: { fontSize: 9, textColor: [30, 35, 50] },
-      alternateRowStyles: { fillColor: [250, 248, 245] },
-      columnStyles: {
-        0: { cellWidth: 22, fontStyle: 'bold' },
-        1: { cellWidth: 38 },
-        2: { cellWidth: 38 },
-        3: { cellWidth: 22, halign: 'center' },
-      }
-    });
-    y = doc.lastAutoTable.finalY + 10;
+    // Bordure extérieure du tableau
+    doc.setDrawColor(180, 185, 200);
+    doc.setLineWidth(0.4);
+    doc.rect(tC1, y - tRowH * _cmSelections.length - tRowH, tTotalW, tRowH * (_cmSelections.length + 1), 'S');
+
+    y += 10;
   }
 
   // ══ PIED DE PAGE ══
