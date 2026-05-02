@@ -491,10 +491,35 @@ function renderAbsences() {
     }
     if (curWeek !== null) weekBlocks.push({ weekNum: curWeek, startCol: curStart, span: curSpan, isVac: curVac });
 
-    let weekRow = '<tr><th class="member-cell" style="border-bottom:1px solid rgba(255,255,255,0.08);"></th>';
+    // Construire la ligne semaine : chaque jour a sa propre cellule <th>,
+    // mais les jours d'une même semaine sont fusionnés avec colspan SAUF
+    // pour la couleur : on colore uniquement les cellules de jours vacances.
+    // Approche : on génère les th par bloc de semaine, mais on découpe
+    // le bloc en sous-blocs contigus vac/non-vac pour colorier précisément.
+    let weekRow = '<tr>';
     weekBlocks.forEach(wb => {
-        const bgVac = wb.isVac ? 'background:var(--red);color:#fff;' : 'background:var(--surface2);color:var(--text3);';
-        weekRow += '<th colspan="' + wb.span + '" class="day-th" style="' + bgVac + 'font-size:0.58rem;font-weight:700;letter-spacing:0.04em;padding:2px 1px;height:18px;border-left:2px solid rgba(255,255,255,0.10);border-bottom:1px solid rgba(255,255,255,0.08);">S' + wb.weekNum + '</th>';
+        // Découper le bloc de semaine en sous-blocs contigus vac/non-vac
+        const subBlocks = [];
+        let sbStart = wb.startCol, sbVac = null, sbSpan = 0, sbFirst = true;
+        for (let di = wb.startCol; di < wb.startCol + wb.span; di++) {
+            const dd = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), di);
+            const dv = !!(state.schoolHolidays && state.schoolHolidays[fmtISO(dd)]);
+            if (sbVac === null) { sbVac = dv; sbStart = di; sbSpan = 1; }
+            else if (dv === sbVac) { sbSpan++; }
+            else {
+                subBlocks.push({ startCol: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
+                sbFirst = false; sbVac = dv; sbStart = di; sbSpan = 1;
+            }
+        }
+        if (sbSpan > 0) subBlocks.push({ startCol: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
+
+        subBlocks.forEach((sb, sbi) => {
+            const isFirst = sb.first;
+            const bgVac = sb.isVac ? 'background:var(--red);color:#fff;' : 'background:transparent;color:var(--text3);';
+            // Afficher le label S× uniquement dans le 1er sous-bloc de la semaine
+            const label = isFirst ? 'S' + wb.weekNum : '';
+            weekRow += '<th colspan="' + sb.span + '" class="day-th" style="' + bgVac + 'font-size:0.52rem;font-weight:700;letter-spacing:0.03em;padding:0 1px;height:9px;line-height:9px;' + (isFirst ? 'border-left:2px solid rgba(255,255,255,0.10);' : '') + 'border-bottom:1px solid rgba(255,255,255,0.08);">' + label + '</th>';
+        });
     });
     weekRow += '</tr>';
 
@@ -702,35 +727,46 @@ async function generateAbsPDF() {
     }
     if (wcurWeek !== null) weekBlocksPDF.push({ weekNum: wcurWeek, startDay: wcurStart, span: wcurSpan, isVac: wcurVac });
 
-    const weekRowH = 5;
-    // Fond colonne nom pour ligne semaines
-    doc.setFillColor(...HDR_BG);
-    doc.rect(marginL, marginT, nameColW, weekRowH, 'F');
-    doc.setDrawColor(210, 212, 218);
-    doc.setLineWidth(0.2);
-    doc.rect(marginL, marginT, nameColW, weekRowH, 'S');
+    const weekRowH = 2.5;
+    // Pas de case au-dessus de la colonne nom (on laisse vide / transparent)
 
+    // Dessiner la ligne semaines : colorer jour par jour selon vacances,
+    // mais afficher le label S× dans le 1er sous-bloc non-rouge de chaque semaine
+    // (ou dans le 1er sous-bloc rouge si toute la semaine est vacances).
     weekBlocksPDF.forEach(wb => {
-      const wx = marginL + nameColW + (wb.startDay - 1) * dayColW;
-      const ww = wb.span * dayColW;
-      if (wb.isVac) {
-        doc.setFillColor(...RED_H);
-        doc.rect(wx, marginT, ww, weekRowH, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(4.5);
-        doc.setTextColor(255, 255, 255);
-      } else {
-        doc.setFillColor(...HDR_BG);
-        doc.rect(wx, marginT, ww, weekRowH, 'F');
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(4.5);
-        doc.setTextColor(130, 140, 155);
+      // Découper en sous-blocs contigus vac/non-vac
+      const subBlocks = [];
+      let sbStart = wb.startDay, sbVac = null, sbSpan = 0, sbFirst = true;
+      for (let di = wb.startDay; di < wb.startDay + wb.span; di++) {
+        const ddate = new Date(year, month, di);
+        const dv = !!(state.schoolHolidays && state.schoolHolidays[fmtISO(ddate)]);
+        if (sbVac === null) { sbVac = dv; sbStart = di; sbSpan = 1; }
+        else if (dv === sbVac) { sbSpan++; }
+        else {
+          subBlocks.push({ startDay: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
+          sbFirst = false; sbVac = dv; sbStart = di; sbSpan = 1;
+        }
       }
-      doc.setDrawColor(210, 212, 218);
-      doc.setLineWidth(0.2);
-      doc.rect(wx, marginT, ww, weekRowH, 'S');
-      const wLabel = 'S' + wb.weekNum;
-      doc.text(wLabel, wx + (ww - doc.getTextWidth(wLabel)) / 2, marginT + 3.5);
+      if (sbSpan > 0) subBlocks.push({ startDay: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
+
+      // Le label S× va dans le 1er sous-bloc de la semaine
+      subBlocks.forEach((sb, sbi) => {
+        const sx = marginL + nameColW + (sb.startDay - 1) * dayColW;
+        const sw = sb.span * dayColW;
+        if (sb.isVac) {
+          doc.setFillColor(...RED_H);
+          doc.rect(sx, marginT, sw, weekRowH, 'F');
+        }
+        // Pas de bordure sur la ligne semaine (fine, épurée)
+        if (sb.first) {
+          // Label dans le 1er sous-bloc
+          const wLabel = 'S' + wb.weekNum;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(3.5);
+          doc.setTextColor(sb.isVac ? 255 : 130, sb.isVac ? 255 : 140, sb.isVac ? 255 : 155);
+          doc.text(wLabel, sx + 0.5, marginT + weekRowH - 0.5);
+        }
+      });
     });
 
     // ── En-tête jours ──
@@ -1553,13 +1589,22 @@ async function validateConges(sendMail = false) {
     return;
   }
 
-  if (!state.manualConges[_cmWorkerId]) state.manualConges[_cmWorkerId] = {};
+  // Copier avant fermeture de la modale
+  const workerId   = _cmWorkerId;
+  const selections = _cmSelections.slice();
 
-  _cmSelections.forEach(sel => {
+  // Ouvrir mailto AVANT tout await (contexte clic utilisateur requis)
+  if (sendMail) {
+    sendCongesMail(workerId, selections);
+  }
+
+  if (!state.manualConges[workerId]) state.manualConges[workerId] = {};
+
+  selections.forEach(sel => {
     Object.entries(sel.days).forEach(([iso, code]) => {
       // Ne pas écraser l'API
-      if (!state.absences[_cmWorkerId]?.[iso]) {
-        state.manualConges[_cmWorkerId][iso] = code;
+      if (!state.absences[workerId]?.[iso]) {
+        state.manualConges[workerId][iso] = code;
       }
     });
   });
@@ -1569,10 +1614,6 @@ async function validateConges(sendMail = false) {
   closeCongeModal();
   await saveCongesRemote();
   toast('Congés enregistrés ✓');
-
-  if (sendMail) {
-    sendCongesMail(_cmWorkerId, _cmSelections);
-  }
 }
 window.validateConges = validateConges;
 
