@@ -595,9 +595,9 @@ async function generateAbsPDF() {
   };
   const BLUE_H  = [59, 143, 255];
   const RED_H   = [255, 77, 109];
-  const GREY_BG = [225, 228, 232];
-  const SAT_BG  = [232, 240, 253];
-  const SUN_BG  = [253, 232, 236];
+  const GREY_BG = [235, 238, 242];
+  const SAT_BG  = [200, 230, 255]; // ACCENTUÉ
+  const SUN_BG  = [255, 210, 220]; // ACCENTUÉ
   const HDR_BG  = [245, 246, 248];
 
   const today = new Date().toLocaleDateString('fr-FR');
@@ -699,14 +699,12 @@ async function generateAbsPDF() {
       const colorKey   = state.config.workerColors?.[w.id];
       const liserColor = colorKey ? colorMapRGB[colorKey] : [180, 185, 195];
 
-      // Carte membre
+      // Carte membre : liseré couleur du membre, pas de bande à gauche
       doc.setFillColor(252, 252, 254);
       doc.roundedRect(marginL, ry, nameColW, rowH, 1, 1, 'F');
-      doc.setDrawColor(220, 222, 228);
-      doc.setLineWidth(0.2);
+      doc.setDrawColor(...liserColor);
+      doc.setLineWidth(0.4);
       doc.roundedRect(marginL, ry, nameColW, rowH, 1, 1, 'S');
-      doc.setFillColor(...liserColor);
-      doc.rect(marginL, ry, 2.5, rowH, 'F');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6);
@@ -717,7 +715,7 @@ async function generateAbsPDF() {
       doc.setTextColor(140, 150, 165);
       doc.text(w.matricule || '', marginL + 5, ry + 7);
 
-      // Cellules jours
+      // Cellules jours : bords arrondis et contour couleur membre
       cx = marginL + nameColW;
       for (let d = 1; d <= daysInMonth; d++) {
         const date    = new Date(year, month, d);
@@ -733,10 +731,11 @@ async function generateAbsPDF() {
         else if (isSun||isFer) doc.setFillColor(...SUN_BG);
         else if (isSat)      doc.setFillColor(...SAT_BG);
         else                 doc.setFillColor(255, 255, 255);
-        doc.rect(cx, ry, dayColW, rowH, 'F');
-        doc.setDrawColor(210, 212, 218);
+
+        doc.roundedRect(cx, ry, dayColW, rowH, 1, 1, 'F');
+        doc.setDrawColor(...liserColor);
         doc.setLineWidth(0.15);
-        doc.rect(cx, ry, dayColW, rowH, 'S');
+        doc.roundedRect(cx, ry, dayColW, rowH, 1, 1, 'S');
 
         if (code) {
           doc.setFont('helvetica', 'bold');
@@ -983,7 +982,7 @@ function closeCmTypeDropdown() {
   if (dd) dd.style.display = 'none';
   if (tr) tr.classList.remove('open');
 }
-window.toggleCmTypeDropdown = toggleCmTypeDropdown;
+window.closeCmTypeDropdown = closeCmTypeDropdown;
 
 function cmNavMonth(dir) {
   _cmMonth = new Date(_cmMonth.getFullYear(), _cmMonth.getMonth() + dir, 1);
@@ -1232,7 +1231,7 @@ function generateFicheConges() {
   if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
 
   // ── Calcul des infos de plage ──
-  // On prend la 1ère plage pour DU/AU, et on additionne les jours principaux
+  // On prend la 1ère plage de DU/AU, et on additionne les jours principaux
   const allDays = {};
   const codeCounts = {};
   _cmSelections.forEach(sel => {
