@@ -496,7 +496,7 @@ function renderAbsences() {
     // pour la couleur : on colore uniquement les cellules de jours vacances.
     // Approche : on génère les th par bloc de semaine, mais on découpe
     // le bloc en sous-blocs contigus vac/non-vac pour colorier précisément.
-    let weekRow = '<tr>';
+    let weekRow = '<tr><th class="member-cell" style="border-top:none;border-left:none;border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);background:transparent;"></th>';
     weekBlocks.forEach(wb => {
         // Découper le bloc de semaine en sous-blocs contigus vac/non-vac
         const subBlocks = [];
@@ -1276,7 +1276,7 @@ function addSingleDayConge(iso, code) {
   renderCmCal();
 }
 
-function cmDeleteDay(iso) {
+async function cmDeleteDay(iso) {
   if (!state.manualConges[_cmWorkerId]) return;
   delete state.manualConges[_cmWorkerId][iso];
   // Supprimer aussi des sélections en attente
@@ -1288,6 +1288,8 @@ function cmDeleteDay(iso) {
   renderAbsences();
   renderCmCal();
   renderCmSelections();
+  await saveCongesRemote();
+  toast('Congé supprimé ✓');
 }
 window.cmDeleteDay = cmDeleteDay;
 
