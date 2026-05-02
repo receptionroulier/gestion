@@ -580,7 +580,9 @@ async function generateAbsPDF() {
   const checked = [...grid.querySelectorAll('input[type=checkbox]:checked')];
   if (checked.length === 0) { toast('Sélectionnez au moins un mois', 'error'); return; }
 
-  closePdfMonthSelect();
+  // Afficher état chargement dans la modale
+  const genBtn = document.querySelector('#pdf-month-select-overlay button[onclick="generateAbsPDF()"]');
+  if (genBtn) { genBtn.textContent = '⏳ Chargement…'; genBtn.disabled = true; }
 
   const { jsPDF } = window.jspdf;
   if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
@@ -590,13 +592,12 @@ async function generateAbsPDF() {
     vert:  [0, 200, 150],  bleu:   [59, 143, 255],
     jaune: [255, 208, 96]
   };
-  const BLUE_H  = [59, 143, 255];   // entête jours samedi
-  const RED_H   = [255, 77, 109];   // entête jours dim/JF
-  const GREY_BG = [230, 232, 236];  // fond jour avec congé
-  const SAT_BG  = [232, 240, 253];  // fond samedi
-  const SUN_BG  = [253, 232, 236];  // fond dim/JF
-  const HDR_BG  = [245, 246, 248];  // fond entête jours normaux
-  const BLUE_PDF= [47, 117, 181];   // bleu Transmanutention
+  const BLUE_H  = [59, 143, 255];
+  const RED_H   = [255, 77, 109];
+  const GREY_BG = [225, 228, 232];
+  const SAT_BG  = [232, 240, 253];
+  const SUN_BG  = [253, 232, 236];
+  const HDR_BG  = [245, 246, 248];
 
   const today = new Date().toLocaleDateString('fr-FR');
   const MONTHS_LONG_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -607,86 +608,80 @@ async function generateAbsPDF() {
   state.staff.forEach(w => { if (!staffSorted.find(s => s.id === w.id)) staffSorted.push(w); });
   const printStaff = staffSorted.filter(w => printSet.has(w.id));
 
-  // Trier les mois sélectionnés par ordre chronologique
+  // Trier les mois sélectionnés chronologiquement
   const months = checked
     .map(cb => ({ year: parseInt(cb.dataset.year), month: parseInt(cb.dataset.month) }))
     .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
 
+  // Sauvegarder le mois courant pour le restaurer après
+  const savedMonth = new Date(state.absMonth);
+
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const W = 297, H = 210;
-  const marginL = 8, marginR = 8, marginT = 14;
+  const marginL = 8, marginR = 8, marginT = 16;
   const footerY = H - 5;
 
   for (let pi = 0; pi < months.length; pi++) {
     if (pi > 0) doc.addPage();
 
     const { year, month } = months[pi];
-    const startOfMonth = new Date(year, month, 1);
-    const daysInMonth  = new Date(year, month + 1, 0).getDate();
-    const monthLabel   = MONTHS_LONG_FR[month] + ' ' + year;
 
-    // Charger les données du mois si besoin
-    const tmpMonth = new Date(year, month, 1);
-    await fetchSchoolHolidays(tmpMonth);
-    await loadAbsencesForMonth(tmpMonth);
+    // Charger les données du mois via le mécanisme existant
+    state.absMonth = new Date(year, month, 1);
+    if (genBtn) genBtn.textContent = '⏳ ' + MONTHS_LONG_FR[month] + '…';
+    await loadMonthData();
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthLabel  = MONTHS_LONG_FR[month] + ' ' + year;
 
     // ── Titre centré ──
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
+    doc.setFontSize(12);
     doc.setTextColor(30, 35, 50);
-    const titleW2 = doc.getTextWidth(monthLabel.toUpperCase());
-    doc.text(monthLabel.toUpperCase(), (W - titleW2) / 2, 9);
+    const tW = doc.getTextWidth(monthLabel.toUpperCase());
+    doc.text(monthLabel.toUpperCase(), (W - tW) / 2, 10);
 
-    // ── Calcul des dimensions ──
-    const usableW   = W - marginL - marginR;
-    const nameColW  = 38;   // largeur colonne nom/matricule
-    const dayColW   = (usableW - nameColW) / daysInMonth;
-    const rowH      = 8;    // hauteur chaque ligne membre
-    const hdrH      = 10;   // hauteur entête jours
-    const liserH    = rowH; // hauteur totale de la carte membre
+    // ── Dimensions ──
+    const usableW  = W - marginL - marginR;
+    const nameColW = 36;
+    const dayColW  = (usableW - nameColW) / daysInMonth;
+    const hdrH     = 10;
+    const rowH     = 8;
 
-    // ── En-tête des jours ──
+    // ── En-tête jours ──
     let cx = marginL + nameColW;
     for (let d = 1; d <= daysInMonth; d++) {
-      const date   = new Date(year, month, d);
-      const isSat  = date.getDay() === 6;
-      const isSun  = date.getDay() === 0;
-      const isFer  = !!state.holidays[fmtISO(date)];
-      const dow    = date.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 2);
+      const date  = new Date(year, month, d);
+      const isSat = date.getDay() === 6;
+      const isSun = date.getDay() === 0;
+      const isFer = !!state.holidays[fmtISO(date)];
+      const dow   = date.toLocaleDateString('fr-FR', { weekday: 'short' }).substring(0, 2);
 
-      if (isSun || isFer) {
-        doc.setFillColor(...SUN_BG);
-      } else if (isSat) {
-        doc.setFillColor(...SAT_BG);
-      } else {
-        doc.setFillColor(...HDR_BG);
-      }
+      if (isSun || isFer)     doc.setFillColor(...SUN_BG);
+      else if (isSat)         doc.setFillColor(...SAT_BG);
+      else                    doc.setFillColor(...HDR_BG);
       doc.rect(cx, marginT, dayColW, hdrH, 'F');
       doc.setDrawColor(210, 212, 218);
       doc.setLineWidth(0.2);
       doc.rect(cx, marginT, dayColW, hdrH, 'S');
 
-      // Numéro du jour
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6);
-      if (isSun || isFer) doc.setTextColor(...RED_H);
-      else if (isSat)    doc.setTextColor(...BLUE_H);
-      else               doc.setTextColor(50, 55, 70);
+      if (isSun || isFer)    doc.setTextColor(...RED_H);
+      else if (isSat)        doc.setTextColor(...BLUE_H);
+      else                   doc.setTextColor(50, 55, 70);
       const dStr = String(d);
-      const dW   = doc.getTextWidth(dStr);
-      doc.text(dStr, cx + (dayColW - dW) / 2, marginT + 4);
+      doc.text(dStr, cx + (dayColW - doc.getTextWidth(dStr)) / 2, marginT + 4);
 
-      // Jour de la semaine
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(4.5);
       doc.setTextColor(130, 140, 155);
-      const dowW = doc.getTextWidth(dow);
-      doc.text(dow, cx + (dayColW - dowW) / 2, marginT + 8);
+      doc.text(dow, cx + (dayColW - doc.getTextWidth(dow)) / 2, marginT + 8);
 
       cx += dayColW;
     }
 
-    // Colonne nom — entête
+    // Entête colonne nom
     doc.setFillColor(...HDR_BG);
     doc.rect(marginL, marginT, nameColW, hdrH, 'F');
     doc.setDrawColor(210, 212, 218);
@@ -699,27 +694,23 @@ async function generateAbsPDF() {
 
     // ── Lignes membres ──
     let ry = marginT + hdrH + 2;
-    printStaff.forEach((w, wi) => {
+    printStaff.forEach(w => {
       const colorKey   = state.config.workerColors?.[w.id];
       const liserColor = colorKey ? colorMapRGB[colorKey] : [180, 185, 195];
 
-      // Carte membre : fond blanc + liseré gauche coloré
+      // Carte membre
       doc.setFillColor(252, 252, 254);
-      doc.roundedRect(marginL, ry, nameColW, liserH, 1, 1, 'F');
+      doc.roundedRect(marginL, ry, nameColW, rowH, 1, 1, 'F');
       doc.setDrawColor(220, 222, 228);
       doc.setLineWidth(0.2);
-      doc.roundedRect(marginL, ry, nameColW, liserH, 1, 1, 'S');
-      // Liseré coloré
+      doc.roundedRect(marginL, ry, nameColW, rowH, 1, 1, 'S');
       doc.setFillColor(...liserColor);
-      doc.rect(marginL, ry, 2.5, liserH, 'F');
+      doc.rect(marginL, ry, 2.5, rowH, 'F');
 
-      // Nom + prénom
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6);
       doc.setTextColor(30, 35, 50);
-      const fullName = w.lastName + ' ' + w.firstName;
-      doc.text(fullName.substring(0, 18), marginL + 5, ry + 4.5);
-      // Matricule
+      doc.text((w.lastName + ' ' + w.firstName).substring(0, 18), marginL + 5, ry + 4.5);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(4.5);
       doc.setTextColor(140, 150, 165);
@@ -737,31 +728,25 @@ async function generateAbsPDF() {
         const isSun   = date.getDay() === 0;
         const isFer   = !!state.holidays[iso];
 
-        if (code) {
-          doc.setFillColor(...GREY_BG);
-        } else if (isSun || isFer) {
-          doc.setFillColor(...SUN_BG);
-        } else if (isSat) {
-          doc.setFillColor(...SAT_BG);
-        } else {
-          doc.setFillColor(255, 255, 255);
-        }
-        doc.rect(cx, ry, dayColW, liserH, 'F');
+        if (code)            doc.setFillColor(...GREY_BG);
+        else if (isSun||isFer) doc.setFillColor(...SUN_BG);
+        else if (isSat)      doc.setFillColor(...SAT_BG);
+        else                 doc.setFillColor(255, 255, 255);
+        doc.rect(cx, ry, dayColW, rowH, 'F');
         doc.setDrawColor(210, 212, 218);
         doc.setLineWidth(0.15);
-        doc.rect(cx, ry, dayColW, liserH, 'S');
+        doc.rect(cx, ry, dayColW, rowH, 'S');
 
         if (code) {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(5);
           doc.setTextColor(30, 35, 50);
           const cW = doc.getTextWidth(code);
-          doc.text(code, cx + (dayColW - cW) / 2, ry + liserH / 2 + 1.5);
+          doc.text(code, cx + (dayColW - cW) / 2, ry + rowH / 2 + 1.5);
         }
         cx += dayColW;
       }
-
-      ry += liserH + 1.5;
+      ry += rowH + 1.5;
     });
 
     // ── Pied de page ──
@@ -769,15 +754,21 @@ async function generateAbsPDF() {
     doc.setFontSize(6);
     doc.setTextColor(170, 170, 180);
     doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', marginL, footerY);
-    // Page number
-    doc.setTextColor(170, 170, 180);
     const pgStr = (pi + 1) + ' / ' + months.length;
-    const pgW   = doc.getTextWidth(pgStr);
-    doc.text(pgStr, W - marginR - pgW, footerY);
+    doc.text(pgStr, W - marginR - doc.getTextWidth(pgStr), footerY);
   }
+
+  // Restaurer le mois courant et le tableau
+  state.absMonth = savedMonth;
+  await loadMonthData();
+  renderAbsences();
+
+  closePdfMonthSelect();
 
   const fileName = 'Conges_' + months.map(m => MONTHS_LONG_FR[m.month].substring(0,3) + m.year).join('-') + '.pdf';
   doc.save(fileName);
+
+  if (genBtn) { genBtn.textContent = '📄 Générer PDF'; genBtn.disabled = false; }
 }
 window.generateAbsPDF = generateAbsPDF;
 
