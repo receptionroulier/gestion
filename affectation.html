@@ -87,7 +87,20 @@ main { display: flex; flex: 1; min-height: 0; }
 #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 #view-week { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 #week-header-area { flex-shrink: 0; overflow: visible; background: var(--bg); border-bottom: 2px solid var(--border2); position: relative; z-index: 10; }
-#week-scroll-area { flex: 1; overflow: auto; min-height: 0; }
+#week-scroll-area { flex: 1; overflow: auto; min-height: 0; position: relative; }
+/* ── SPINNER ── */
+.zone-spinner {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: absolute; inset: 0; gap: 14px; z-index: 20;
+  background: rgba(10,14,20,0.55);
+}
+.spinner-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--border2); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label { font-size: 0.7rem; font-weight: 700; color: var(--text3); letter-spacing: .06em; }
 .days-header { display: grid; gap: 4px; padding: 8px 0 4px; box-sizing: border-box; }
 .day-header-cell {
   text-align: center; padding: 8px 4px; border-radius: 7px; font-size: 0.72rem; font-weight: 700;
@@ -286,6 +299,7 @@ main { display: flex; flex: 1; min-height: 0; }
           </div>
         </div>
         <div id="week-scroll-area">
+          <div id="week-spinner" class="zone-spinner" style="display:none;"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
           <div id="week-inner" style="min-width:560px;padding:4px 10px 10px;">
             <div class="week-grid" id="week-grid"></div>
           </div>
@@ -649,10 +663,19 @@ function updateWeekLabel() {
 }
 
 function render() {
+  const sp = document.getElementById('week-spinner');
+  if (sp) sp.style.display = 'none';
   updateWeekLabel();
   renderStaffList(document.getElementById('staff-search').value);
   renderWeekHeader();
   renderWeekGrid();
+}
+
+async function loadAndRender() {
+  const sp = document.getElementById('week-spinner');
+  if (sp) sp.style.display = 'flex';
+  await loadAllData();
+  render();
 }
 
 // ── DUPLICATE DAY ──
@@ -923,8 +946,7 @@ function renderCalPopup() {
       e.stopPropagation();
       state.weekStart = getMonday(new Date(el.dataset.iso));
       closeCalPopup();
-      await loadAllData();
-      render();
+      await loadAndRender();
     });
   });
 }
@@ -943,8 +965,7 @@ function closeCalPopup() {
 // ── INIT ──
 async function initApp() {
     await fetchHolidays();
-    await loadAllData();
-    render();
+    await loadAndRender();
 }
 
 // ── EVENT LISTENERS ──
@@ -969,18 +990,15 @@ document.querySelectorAll('.cfg-module-btn').forEach(btn => {
 document.getElementById('btn-email-week').addEventListener('click', sendWeeklyMail);
 document.getElementById('btn-week-prev').addEventListener('click', async () => {
     state.weekStart = addDays(state.weekStart, -7);
-    await loadAllData();
-    render();
+    await loadAndRender();
 });
 document.getElementById('btn-week-next').addEventListener('click', async () => {
     state.weekStart = addDays(state.weekStart, 7);
-    await loadAllData();
-    render();
+    await loadAndRender();
 });
 document.getElementById('btn-today').addEventListener('click', async () => {
     state.weekStart = getMonday(new Date());
-    await loadAllData();
-    render();
+    await loadAndRender();
 });
 document.getElementById('staff-search').addEventListener('input', e => renderStaffList(e.target.value));
 
