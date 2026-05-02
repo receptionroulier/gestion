@@ -785,14 +785,7 @@ function openCfgModule(module) {
     footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveVacancesConfig()">Enregistrer</button>`;
   }
   else if (module === 'congetypes') {
-    // CONGE_TYPES_BASE et saveCongeTypesConfig() sont définis dans conges.html
-    // On appelle la fonction de rendu exposée sur window
-    if (typeof window.renderCongeTypesPanel === 'function') {
-      window.renderCongeTypesPanel(body, footer);
-    } else {
-      body.innerHTML = `<div style="font-size:0.72rem;color:var(--text3);padding:10px 0;">Disponible uniquement depuis la vue Congés.</div>`;
-      footer.innerHTML = '';
-    }
+    renderCongeTypesPanel(body, footer);
   }
 
   const subpanel = document.getElementById('cfg-subpanel');
@@ -961,6 +954,102 @@ async function sendWeeklyMail() {
     window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}&subject=${encodeURIComponent('Planning Hebdo Semaine ' + wn)}&body=${encodeURIComponent(body)}`);
 }
 
+// ── TYPES DE CONGÉS ──
+const CONGE_TYPES_BASE = [
+  { code: 'CP',   label: 'CP — Congé Payé' },
+  { code: 'CPAT', label: 'CPAT — Congé Payé Anticipé' },
+  { code: 'RR',   label: 'RR — Repos Récupération' },
+  { code: 'RTT',  label: 'RTT — Réduction Temps Travail' },
+  { code: 'CSS',  label: 'CSS — Congé Sans Solde' },
+  { code: 'AT',   label: 'AT — Accident Travail' },
+  { code: 'MAL',  label: 'MAL — Maladie' },
+  { code: 'MP',   label: 'MP — Maladie Professionnelle' },
+  { code: 'FE',   label: 'FE — Jour Férié' },
+  { code: 'R',    label: 'R — Repos' },
+  { code: 'RP',   label: 'RP — Repos Programmé' },
+  { code: 'EXC',  label: 'EXC — Congé Exceptionnel' },
+  { code: 'PAT',  label: 'PAT — Paternité' },
+  { code: 'MAT',  label: 'MAT — Maternité' },
+  { code: 'AUT',  label: 'AUT — Autres Absences' },
+  { code: 'FORM', label: 'FORM — Formation' },
+  { code: 'EVE',  label: 'EVE — Évènement Familial' },
+];
+
+let _dynamicCodes = new Set(CONGE_TYPES_BASE.map(t => t.code));
+
+function getCongeTypes() {
+  const customLabels = state.config.congeLabels || {};
+  const types = CONGE_TYPES_BASE.map(t => ({
+    ...t,
+    label: customLabels[t.code] ? t.code + ' — ' + customLabels[t.code] : t.label
+  }));
+  Object.values(state.absences || {}).forEach(days => {
+    Object.values(days).forEach(code => {
+      if (code && !_dynamicCodes.has(code)) {
+        _dynamicCodes.add(code);
+        const customLabel = customLabels[code];
+        types.push({ code, label: customLabel ? code + ' — ' + customLabel : code + ' — (API)', isApi: true });
+      }
+    });
+  });
+  return types;
+}
+
+function renderCongeTypesPanel(body, footer) {
+  const customLabels = state.config.congeLabels || {};
+  const allTypes = getCongeTypes();
+  const rows = allTypes.map(t => {
+    const customLabel = customLabels[t.code] || '';
+    const defaultLabel = CONGE_TYPES_BASE.find(b => b.code === t.code)?.label?.replace(/^.+? — /, '') || '';
+    const apiBadge = t.isApi ? '<span class="cfg-ctype-api-badge">API</span>' : '';
+    const inputVal = customLabel || defaultLabel;
+    const inputStyle = customLabel ? '' : 'color:var(--text3);font-style:italic;';
+    return `<div class="cfg-ctype-row">
+      <span class="cfg-ctype-code">${t.code}</span>
+      ${apiBadge}
+      <input class="cfg-ctype-input" data-code="${t.code}" data-default="${defaultLabel}" placeholder="${defaultLabel || t.code}" value="${inputVal}" style="${inputStyle}" oninput="this.style.color='';this.style.fontStyle='';">
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div style="font-size:0.65rem;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Personnalisez les libellés affichés dans la liste déroulante.<br>
+      Les codes marqués <span style="color:var(--warn);font-weight:700;">API</span> ont été découverts automatiquement.
+    </div>
+    <div style="display:flex;flex-direction:column;">${rows}</div>
+  `;
+  footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveCongeTypesConfig()">Enregistrer</button>`;
+}
+
+window.saveCongeTypesConfig = function() {
+  if (!state.config.congeLabels) state.config.congeLabels = {};
+  document.querySelectorAll('.cfg-ctype-input[data-code]').forEach(input => {
+    const code = input.dataset.code;
+    const val = input.value.trim();
+    const def = input.dataset.default || '';
+    if (val && val !== def) {
+      state.config.congeLabels[code] = val;
+    } else {
+      delete state.config.congeLabels[code];
+    }
+  });
+  saveState();
+  closeCfgSubpanel();
+  toast('Libellés des congés sauvegardés ✓');
+};
+
+// Injection CSS pour le panneau types congés (partagé entre les deux pages)
+(function injectCongeTypesCSS() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .cfg-ctype-row { display:flex; align-items:center; gap:6px; padding:4px 0; border-bottom:1px solid var(--border); }
+    .cfg-ctype-code { font-size:0.68rem; font-weight:700; color:var(--accent); font-family:'DM Mono',monospace; min-width:48px; }
+    .cfg-ctype-api-badge { font-size:0.55rem; font-weight:700; background:rgba(255,107,53,0.25); color:var(--warn); border-radius:3px; padding:1px 4px; flex-shrink:0; }
+    .cfg-ctype-input { flex:1; background:var(--surface); border:1px solid var(--border2); border-radius:5px; color:var(--text); padding:3px 7px; font-size:0.68rem; font-family:inherit; outline:none; }
+    .cfg-ctype-input:focus { border-color:var(--accent); }
+  `;
+  document.head.appendChild(style);
+})();
+
 // Export pour les fichiers HTML
 window.sharedState = state;
 window.loadState = loadState;
@@ -1001,3 +1090,6 @@ window.weekKey = weekKey;
 window.TBD_WORKER = TBD_WORKER;
 window.WORKER_COLORS = WORKER_COLORS;
 window.showSyncStatus = showSyncStatus;
+window.CONGE_TYPES_BASE = CONGE_TYPES_BASE;
+window.getCongeTypes = getCongeTypes;
+window.renderCongeTypesPanel = renderCongeTypesPanel;
