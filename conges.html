@@ -464,6 +464,40 @@ function renderAbsences() {
     }
     colgroup += '</colgroup>';
 
+    // ── Ligne des semaines (au-dessus des jours) ──
+    // Calculer les numéros de semaine ISO pour chaque jour du mois
+    function getISOWeek(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    }
+
+    // Construire les blocs de semaines : [{weekNum, startCol, span, isVac}]
+    const weekBlocks = [];
+    let curWeek = null, curStart = 1, curSpan = 0, curVac = false;
+    for (let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
+        const wn = getISOWeek(d);
+        const isVac = !!(state.schoolHolidays && state.schoolHolidays[fmtISO(d)]);
+        if (wn !== curWeek) {
+            if (curWeek !== null) weekBlocks.push({ weekNum: curWeek, startCol: curStart, span: curSpan, isVac: curVac });
+            curWeek = wn; curStart = i; curSpan = 1; curVac = isVac;
+        } else {
+            curSpan++;
+            if (isVac) curVac = true;
+        }
+    }
+    if (curWeek !== null) weekBlocks.push({ weekNum: curWeek, startCol: curStart, span: curSpan, isVac: curVac });
+
+    let weekRow = '<tr><th class="member-cell" style="border-bottom:1px solid rgba(255,255,255,0.08);"></th>';
+    weekBlocks.forEach(wb => {
+        const bgVac = wb.isVac ? 'background:var(--red);color:#fff;' : 'background:var(--surface2);color:var(--text3);';
+        weekRow += '<th colspan="' + wb.span + '" class="day-th" style="' + bgVac + 'font-size:0.58rem;font-weight:700;letter-spacing:0.04em;padding:2px 1px;height:18px;border-left:2px solid rgba(255,255,255,0.10);border-bottom:1px solid rgba(255,255,255,0.08);">S' + wb.weekNum + '</th>';
+    });
+    weekRow += '</tr>';
+
     let headerRow = '<tr><th class="member-cell">Personnel</th>';
     for (let i = 1; i <= daysInMonth; i++) {
         const d = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), i);
@@ -472,11 +506,9 @@ function renderAbsences() {
         const isSat = d.getDay() === 6;
         const isSun = d.getDay() === 0;
         const isFerie = !!state.holidays[dateISO];
-        const isVacances = !!(state.schoolHolidays && state.schoolHolidays[dateISO]);
         const isRed = isSun || isFerie;
         const bgStyle = isRed ? 'background-image:linear-gradient(rgba(255,77,109,0.18),rgba(255,77,109,0.18));' : isSat ? 'background-image:linear-gradient(rgba(59,143,255,0.18),rgba(59,143,255,0.18));' : '';
-        const vacStyle = isVacances ? 'box-shadow:inset 0 3px 0 var(--red);' : '';
-        headerRow += '<th class="day-th" style="' + bgStyle + vacStyle + '">' + i + '<br><span style="font-weight:400;font-size:0.55rem">' + dow + '</span></th>';
+        headerRow += '<th class="day-th" style="' + bgStyle + '">' + i + '<br><span style="font-weight:400;font-size:0.55rem">' + dow + '</span></th>';
     }
     headerRow += '</tr>';
 
@@ -509,7 +541,7 @@ function renderAbsences() {
         rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
     });
 
-    bodyTable.innerHTML = colgroup + '<thead>' + headerRow + '</thead><tbody>' + rows + '</tbody>';
+    bodyTable.innerHTML = colgroup + '<thead>' + weekRow + headerRow + '</thead><tbody>' + rows + '</tbody>';
     // Event delegation pour les boutons demande de congé
     bodyTable.querySelectorAll('.btn-demande-conge').forEach(btn => {
         btn.addEventListener('click', function(e) {
@@ -649,6 +681,58 @@ async function generateAbsPDF() {
     const hdrH     = 10;
     const rowH     = 8;
 
+    // ── Ligne des semaines (au-dessus des jours, PDF) ──
+    function getISOWeekPDF(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    }
+    const weekBlocksPDF = [];
+    let wcurWeek = null, wcurStart = 1, wcurSpan = 0, wcurVac = false;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      const wn = getISOWeekPDF(date);
+      const isVac = !!(state.schoolHolidays && state.schoolHolidays[fmtISO(date)]);
+      if (wn !== wcurWeek) {
+        if (wcurWeek !== null) weekBlocksPDF.push({ weekNum: wcurWeek, startDay: wcurStart, span: wcurSpan, isVac: wcurVac });
+        wcurWeek = wn; wcurStart = d; wcurSpan = 1; wcurVac = isVac;
+      } else { wcurSpan++; if (isVac) wcurVac = true; }
+    }
+    if (wcurWeek !== null) weekBlocksPDF.push({ weekNum: wcurWeek, startDay: wcurStart, span: wcurSpan, isVac: wcurVac });
+
+    const weekRowH = 5;
+    // Fond colonne nom pour ligne semaines
+    doc.setFillColor(...HDR_BG);
+    doc.rect(marginL, marginT, nameColW, weekRowH, 'F');
+    doc.setDrawColor(210, 212, 218);
+    doc.setLineWidth(0.2);
+    doc.rect(marginL, marginT, nameColW, weekRowH, 'S');
+
+    weekBlocksPDF.forEach(wb => {
+      const wx = marginL + nameColW + (wb.startDay - 1) * dayColW;
+      const ww = wb.span * dayColW;
+      if (wb.isVac) {
+        doc.setFillColor(...RED_H);
+        doc.rect(wx, marginT, ww, weekRowH, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(4.5);
+        doc.setTextColor(255, 255, 255);
+      } else {
+        doc.setFillColor(...HDR_BG);
+        doc.rect(wx, marginT, ww, weekRowH, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(4.5);
+        doc.setTextColor(130, 140, 155);
+      }
+      doc.setDrawColor(210, 212, 218);
+      doc.setLineWidth(0.2);
+      doc.rect(wx, marginT, ww, weekRowH, 'S');
+      const wLabel = 'S' + wb.weekNum;
+      doc.text(wLabel, wx + (ww - doc.getTextWidth(wLabel)) / 2, marginT + 3.5);
+    });
+
     // ── En-tête jours ──
     let cx = marginL + nameColW;
     for (let d = 1; d <= daysInMonth; d++) {
@@ -661,10 +745,10 @@ async function generateAbsPDF() {
       if (isSun || isFer)     doc.setFillColor(...SUN_BG);
       else if (isSat)         doc.setFillColor(...SAT_BG);
       else                    doc.setFillColor(...HDR_BG);
-      doc.rect(cx, marginT, dayColW, hdrH, 'F');
+      doc.rect(cx, marginT + weekRowH, dayColW, hdrH, 'F');
       doc.setDrawColor(210, 212, 218);
       doc.setLineWidth(0.2);
-      doc.rect(cx, marginT, dayColW, hdrH, 'S');
+      doc.rect(cx, marginT + weekRowH, dayColW, hdrH, 'S');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6);
@@ -672,29 +756,29 @@ async function generateAbsPDF() {
       else if (isSat)        doc.setTextColor(...BLUE_H);
       else                   doc.setTextColor(50, 55, 70);
       const dStr = String(d);
-      doc.text(dStr, cx + (dayColW - doc.getTextWidth(dStr)) / 2, marginT + 4);
+      doc.text(dStr, cx + (dayColW - doc.getTextWidth(dStr)) / 2, marginT + weekRowH + 4);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(4.5);
       doc.setTextColor(130, 140, 155);
-      doc.text(dow, cx + (dayColW - doc.getTextWidth(dow)) / 2, marginT + 8);
+      doc.text(dow, cx + (dayColW - doc.getTextWidth(dow)) / 2, marginT + weekRowH + 8);
 
       cx += dayColW;
     }
 
     // Entête colonne nom
     doc.setFillColor(...HDR_BG);
-    doc.rect(marginL, marginT, nameColW, hdrH, 'F');
+    doc.rect(marginL, marginT + weekRowH, nameColW, hdrH, 'F');
     doc.setDrawColor(210, 212, 218);
     doc.setLineWidth(0.2);
-    doc.rect(marginL, marginT, nameColW, hdrH, 'S');
+    doc.rect(marginL, marginT + weekRowH, nameColW, hdrH, 'S');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6);
     doc.setTextColor(100, 110, 125);
-    doc.text('PERSONNEL', marginL + 3, marginT + 6);
+    doc.text('PERSONNEL', marginL + 3, marginT + weekRowH + 6);
 
     // ── Lignes membres ──
-    let ry = marginT + hdrH + 2;
+    let ry = marginT + weekRowH + hdrH + 2;
     printStaff.forEach(w => {
       const colorKey   = state.config.workerColors?.[w.id];
       const liserColor = colorKey ? colorMapRGB[colorKey] : [180, 185, 195];
