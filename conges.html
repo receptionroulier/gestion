@@ -1051,10 +1051,10 @@ function generateFicheConges() {
   const titleW = doc.getTextWidth(titleStr);
   doc.text(titleStr, W - margin - titleW, 16);
 
-  // Ligne bleue pleine largeur sous le titre
+  // Ligne bleue de marge à marge sous le titre
   doc.setDrawColor(...BLUE);
-  doc.setLineWidth(1.2);
-  doc.line(0, 22, W, 22);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 22, W - margin, 22);
 
   // ══ CORPS ══
   let y = 34;
@@ -1191,7 +1191,7 @@ function generateFicheConges() {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(170, 170, 180);
-  doc.text('Document généré le ' + today + ' — TRANSMANUTENTION', margin, H - 10);
+  doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, H - 10);
 
   // ══ SAUVEGARDE ══
   const safeName = (worker.lastName + '-' + worker.firstName + '-' + (worker.matricule || 'X'))
