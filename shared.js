@@ -966,29 +966,28 @@ const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet'
 // Dessine l'effectif d'un jour sur le doc jsPDF à partir de la position y donnée.
 // Retourne le nouveau y après le rendu.
 function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
-  const BLUE = [47, 117, 181];
-  const GREY_CARD = [210, 215, 222];
+  const GREY_CARD = [215, 220, 228];
   const H = 297;
   const sectionsMap = getSectionsMap();
   const daySlots = state.slots[dayIdx] || {};
 
-  const cardW = W - 2 * margin;
-  const memberH = 12;   // plus de hauteur pour loger poste + nom
+  const cardW  = W - 2 * margin;
+  const memberH   = 9;   // une seule ligne : poste + nom + matricule
   const secTitleH = 8;
-  const hoursH = 5;
-  const innerPad = 3;
-  const memberPad = 2;
+  const hoursH    = 6;
+  const innerPad  = 2.5;
+  const memberPad = 1.5;
 
   let y = startY;
 
   SECTIONS_ORDER.forEach(secId => {
-    const sec = sectionsMap[secId];
+    const sec   = sectionsMap[secId];
     const slots = daySlots[secId] || [];
     if (slots.length === 0) return;
 
     const secRGB = _pdfParseColor(sec.color);
 
-    // ── Titre chantier (arrondi) ──
+    // ── Titre chantier arrondi ──
     if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
     doc.setFillColor(...secRGB);
     doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
@@ -998,37 +997,38 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
     y += secTitleH;
 
-    // ── Horaire si présent ──
+    // ── Horaire arrondi, centré, collé au titre (pas d'espace) ──
     if (sec.hours) {
       if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
-      doc.setFillColor(240, 243, 248);
-      doc.rect(margin, y, cardW, hoursH, 'F');
+      doc.setFillColor(235, 239, 246);
+      doc.roundedRect(margin, y, cardW, hoursH, 0, 2, 'F'); // arrondi bas seulement
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      doc.setTextColor(80, 90, 110);
-      doc.text(sec.hours, margin + 5, y + 3.5);
+      doc.setTextColor(70, 85, 110);
+      // centré horizontalement
+      const hW = doc.getTextWidth(sec.hours);
+      doc.text(sec.hours, margin + (cardW - hW) / 2, y + 4);
       y += hoursH;
     }
 
-    y += 2;
+    y += 3; // espace entre bloc horaire/titre et les cartes membres
 
     const membersInSec = slots.map(slot => {
       const key = gkey(dayIdx + '_' + secId + '_' + slot.id);
-      const workerId = state.planningModified[key] !== undefined ? state.planningModified[key] : state.planning[key];
+      const workerId = state.planningModified[key] !== undefined
+        ? state.planningModified[key] : state.planning[key];
       const w = getWorker(workerId);
       return { slot, workerId, w };
     });
 
     // Conteneur gris englobant
-    const membersHeight = membersInSec.length * (memberH + memberPad);
-    const totalCMH = innerPad + membersHeight + innerPad;
-
+    const totalCMH = innerPad + membersInSec.length * (memberH + memberPad) - memberPad + innerPad;
     if (y + totalCMH > H - 15) { doc.addPage(); y = 20; }
 
-    doc.setFillColor(245, 247, 250);
+    doc.setFillColor(246, 248, 251);
     doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'F');
     doc.setDrawColor(...GREY_CARD);
-    doc.setLineWidth(0.3);
+    doc.setLineWidth(0.25);
     doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'S');
 
     let cy = y + innerPad;
@@ -1038,50 +1038,54 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       if (cy + memberH > H - 15) { doc.addPage(); cy = 20; }
 
       const workerColorKey = state.config?.workerColors?.[workerId];
-      const memberRGB = workerColorKey ? _PDF_COLOR_MAP_RGB[workerColorKey] : [180, 185, 195];
-      const displayName = w ? (w.lastName + ' ' + w.firstName) : (workerId ? 'Hors groupe' : '—');
+      const memberRGB  = workerColorKey ? _PDF_COLOR_MAP_RGB[workerColorKey] : [190, 195, 205];
+      const displayName   = w ? (w.lastName + ' ' + w.firstName) : (workerId ? 'Hors groupe' : '—');
       const displayMatric = w ? (w.matricule || '—') : '—';
-      const postLabel = slot.label || '';
+      const postLabel     = slot.label || '';
 
       const mLeft = margin + innerPad;
-      const mW = cardW - 2 * innerPad;
+      const mW    = cardW - 2 * innerPad;
+      const midY  = cy + memberH / 2 + 1.5; // ligne de base centrée
 
       // Fond blanc arrondi
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
-      // Bordure couleur à gauche seulement (liseré)
+
+      // Liseré gauche couleur membre (fin, pas de fond coloré)
       doc.setFillColor(...memberRGB);
-      doc.roundedRect(mLeft, cy, 2.5, memberH, 1, 1, 'F');
-      // Contour général discret
+      doc.rect(mLeft, cy + 1, 2, memberH - 2, 'F');
+
+      // Contour discret
       doc.setDrawColor(...GREY_CARD);
-      doc.setLineWidth(0.3);
+      doc.setLineWidth(0.25);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
 
       const textLeft = mLeft + 5;
 
-      // Poste (CM, FCQ…) — en haut à gauche, gras, plus gros
+      // Poste — à gauche, gras, couleur membre
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 110, 130);
-      doc.text(postLabel, textLeft, cy + 4.5);
+      doc.setFontSize(8);
+      doc.setTextColor(...memberRGB);
+      doc.text(postLabel, textLeft, midY);
 
-      // NOM Prénom — décalé en dessous
+      // NOM Prénom — au centre (après le poste + un gap fixe)
+      const posteW = doc.getTextWidth(postLabel);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(25, 30, 45);
-      doc.text(displayName, textLeft + 2, cy + memberH - 2.5);
+      doc.text(displayName, textLeft + posteW + 4, midY);
 
-      // Matricule à droite, centré verticalement
+      // Matricule — à droite, plus grand
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(140, 150, 165);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 110, 130);
       const matW = doc.getTextWidth(displayMatric);
-      doc.text(displayMatric, mLeft + mW - matW - 3, cy + memberH / 2 + 1);
+      doc.text(displayMatric, mLeft + mW - matW - 3, midY);
 
       cy += memberH + memberPad;
     });
 
-    y = cy + 3;
+    y = cy - memberPad + 5; // espace entre chantiers
   });
 
   return y;
@@ -1094,17 +1098,17 @@ async function generateDayPDF(dayIdx) {
 
   const BLUE = [47, 117, 181];
   const d = addDays(state.weekStart, dayIdx);
-  // "lundi 27 avril 2026" en minuscules pour l'objet/corps, capitalisé pour le PDF
+
+  // "lundi 27 avril 2026" — minuscules pour objet/corps mail
   const dateLabelLong = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  // "Lundi 27 Avril 2026" — capitalisé pour affichage PDF
-  const dateLabelPDF = dateLabelLong.replace(/\b\w/g, c => c.toUpperCase());
+  // "Lundi 27 Avril 2026" — capitalisé pour le PDF
+  const dateLabelPDF  = dateLabelLong.replace(/\b\w/g, c => c.toUpperCase());
   const today = new Date().toLocaleDateString('fr-FR');
-  const titre = 'Effectif Équipe Parc Réception Roulier';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, margin = 14;
 
-  // Header TRANSMANUTENTION
+  // ── Header TRANSMANUTENTION ──
   doc.setFont('helvetica', 'bolditalic');
   doc.setFontSize(20);
   doc.setTextColor(...BLUE);
@@ -1113,31 +1117,44 @@ async function generateDayPDF(dayIdx) {
   doc.setLineWidth(0.5);
   doc.line(margin, 20, W - margin, 20);
 
-  // Titre + date sur la même ligne
+  // ── Titre complet sur une ligne : bold + normal, même taille ──
+  // Pour éviter tout chevauchement on mesure la partie bold avant d'écrire la suite
+  const fs = 11;
+  const titreBase  = 'Effectif Équipe Parc Réception Roulier';
+  const titreSuite = '  du  ' + dateLabelPDF;
+
+  doc.setFontSize(fs);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(30, 35, 50);
-  doc.text(titre, margin, 29);
+  const baseW = doc.getTextWidth(titreBase);
+  // Vérifie si tout tient sur la largeur utile, sinon réduit légèrement
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
+  const suiteW = doc.getTextWidth(titreSuite);
+  const totalW = baseW + suiteW;
+  const usable = W - 2 * margin;
+  const scale  = totalW > usable ? usable / totalW : 1;
+  const fsFinal = fs * scale;
+
+  doc.setFontSize(fsFinal);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 35, 50);
+  doc.text(titreBase, margin, 29);
+
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 90, 110);
-  const titreW = doc.getTextWidth(titre);
-  doc.text('  —  ' + dateLabelPDF, margin + titreW, 29);
+  doc.text(titreSuite, margin + baseW * scale, 29);
 
-  _pdfRenderDay(doc, dayIdx, W, margin, 37);
+  _pdfRenderDay(doc, dayIdx, W, margin, 36);
 
-  // Pied de page
+  // ── Pied de page ──
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(170, 170, 180);
   doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
 
-  // Nom de fichier : Effectif_Parc_Roulier_du_Lundi-27-avril-2026
-  const dayCapit = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
-  const dayNum = d.getDate();
+  // ── Nom de fichier ──
+  const dayCapit  = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
   const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
-  const yearNum = d.getFullYear();
-  const fileName = `Effectif_Parc_Roulier_du_${dayCapit}-${dayNum}-${monthName}-${yearNum}.pdf`;
+  const fileName  = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
 
   await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
   return { dateLabelLong, fileName };
