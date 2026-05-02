@@ -50,6 +50,10 @@ let state = {
   config: {
     emailWeek: 'chefmanutention.tmt@shgt.fr',
     emailCcWeek: 'smaillard@smr-france.com',
+    emailBccWeek: '',
+    pdfPathDaily: '',
+    pdfPathWeekly: '',
+    pdfPathConges: '',
     workerColors: {},
     schoolHolidayZones: { A: false, B: true, C: false },
     absOrder: [],
@@ -734,9 +738,19 @@ function openCfgModule(module) {
   if (module === 'mail') {
     body.innerHTML = `
       <div class="modal-label">Email destinataires</div>
-      <input class="modal-input" id="cfg-email-week" value="${state.config.emailWeek}" style="width:100%;margin-bottom:12px;">
+      <input class="modal-input" id="cfg-email-week" value="${state.config.emailWeek || ''}" style="width:100%;margin-bottom:12px;">
       <div class="modal-label">Copie (CC)</div>
-      <input class="modal-input" id="cfg-cc-week" value="${state.config.emailCcWeek}" style="width:100%;">
+      <input class="modal-input" id="cfg-cc-week" value="${state.config.emailCcWeek || ''}" style="width:100%;margin-bottom:12px;">
+      <div class="modal-label">Copie cachée (CCI)</div>
+      <input class="modal-input" id="cfg-bcc-week" value="${state.config.emailBccWeek || ''}" style="width:100%;margin-bottom:20px;">
+      <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#128193; Chemins PDF par défaut</div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:12px;line-height:1.5;">Si le chemin est accessible, le PDF y sera enregistré automatiquement. Sinon, téléchargement classique.</div>
+      <div class="modal-label">PDF Journalier</div>
+      <input class="modal-input" id="cfg-path-daily" value="${state.config.pdfPathDaily || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Journalier" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
+      <div class="modal-label">PDF Hebdomadaire</div>
+      <input class="modal-input" id="cfg-path-weekly" value="${state.config.pdfPathWeekly || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Hebdo" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
+      <div class="modal-label">PDF Congés</div>
+      <input class="modal-input" id="cfg-path-conges" value="${state.config.pdfPathConges || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Congés" style="width:100%;font-family:'DM Mono',monospace;font-size:0.7rem;">
     `;
     footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveConfig()">Enregistrer</button>`;
   }
@@ -897,13 +911,46 @@ window.saveVacancesConfig = async function() {
 window.saveConfig = function() {
   const emailWeek = document.getElementById('cfg-email-week');
   const emailCcWeek = document.getElementById('cfg-cc-week');
-  if (emailWeek) state.config.emailWeek = emailWeek.value;
-  if (emailCcWeek) state.config.emailCcWeek = emailCcWeek.value;
+  const emailBccWeek = document.getElementById('cfg-bcc-week');
+  const pathDaily = document.getElementById('cfg-path-daily');
+  const pathWeekly = document.getElementById('cfg-path-weekly');
+  const pathConges = document.getElementById('cfg-path-conges');
+  if (emailWeek) state.config.emailWeek = emailWeek.value.trim();
+  if (emailCcWeek) state.config.emailCcWeek = emailCcWeek.value.trim();
+  if (emailBccWeek) state.config.emailBccWeek = emailBccWeek.value.trim();
+  if (pathDaily) state.config.pdfPathDaily = pathDaily.value.trim();
+  if (pathWeekly) state.config.pdfPathWeekly = pathWeekly.value.trim();
+  if (pathConges) state.config.pdfPathConges = pathConges.value.trim();
   saveState(); closeCfgSubpanel(); toast('Configuration sauvegardée');
 };
 
 // ── PDF GENERATION ──
-async function generatePDF(dayIdx = null) {
+// Tente de sauvegarder le blob dans un chemin configuré via showSaveFilePicker (File System Access API).
+// Si le chemin n'est pas accessible (API non dispo ou refus), fallback sur doc.save() classique.
+async function _savePDFWithFallback(doc, fileName, configuredPath) {
+    const blob = doc.output('blob');
+    if (configuredPath && typeof window.showSaveFilePicker === 'function') {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                startIn: 'downloads', // hint seulement, non bloquant
+                types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            toast('PDF enregistré ✓');
+            return;
+        } catch(e) {
+            // Utilisateur a annulé ou chemin inaccessible → fallback
+            if (e.name !== 'AbortError') console.warn('[PDF] showSaveFilePicker échec, fallback:', e);
+        }
+    }
+    // Fallback classique
+    doc.save(fileName);
+}
+
+async function generatePDF(dayIdx = null, pdfType = null) {
     const { jsPDF } = window.jspdf;
     if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
     const doc = new jsPDF();
@@ -943,22 +990,32 @@ async function generatePDF(dayIdx = null) {
     }
     doc.text(title, 14, 15);
     doc.autoTable({ startY: 20, head: [['Poste / Section', 'Personnel']], body: rows, theme: 'grid' });
-    doc.save(fileName);
+
+    // Détermine le chemin PDF configuré selon le type
+    let configuredPath = '';
+    const resolvedType = pdfType || (dayIdx === null ? 'weekly' : 'daily');
+    if (resolvedType === 'daily') configuredPath = state.config.pdfPathDaily || '';
+    else if (resolvedType === 'weekly') configuredPath = state.config.pdfPathWeekly || '';
+    else if (resolvedType === 'conges') configuredPath = state.config.pdfPathConges || '';
+
+    await _savePDFWithFallback(doc, fileName, configuredPath);
 }
 
 async function sendDailyMail(dayIdx) {
     const d = addDays(state.weekStart, dayIdx);
     const dateStr = d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-    await generatePDF(dayIdx);
+    await generatePDF(dayIdx, 'daily');
     const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour le ${dateStr}.`;
-    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}&subject=${encodeURIComponent('Planning Réception du ' + fmtFR(d))}&body=${encodeURIComponent(body)}`);
+    const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
+    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}${bcc}&subject=${encodeURIComponent('Planning Réception du ' + fmtFR(d))}&body=${encodeURIComponent(body)}`);
 }
 
 async function sendWeeklyMail() {
     const wn = getWeekNum(state.weekStart);
-    await generatePDF();
+    await generatePDF(null, 'weekly');
     const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour la Semaine ${wn}.`;
-    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}&subject=${encodeURIComponent('Planning Hebdo Semaine ' + wn)}&body=${encodeURIComponent(body)}`);
+    const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
+    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}${bcc}&subject=${encodeURIComponent('Planning Hebdo Semaine ' + wn)}&body=${encodeURIComponent(body)}`);
 }
 
 // ── TYPES DE CONGÉS ──
