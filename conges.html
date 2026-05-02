@@ -127,7 +127,8 @@ main { display: flex; flex: 1; min-height: 0; }
 /* ── SPINNER ZONE CONTENU ── */
 .zone-spinner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  position: absolute; inset: 0; gap: 14px;
+  position: absolute; inset: 0; gap: 14px; z-index: 20;
+  background: rgba(10,14,20,0.55);
 }
 .spinner-ring {
   width: 40px; height: 40px; border-radius: 50%;
@@ -185,14 +186,14 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
 .cm-type-trigger:hover, .cm-type-trigger.open { border-color: var(--accent); color: var(--text); }
 .cm-type-trigger-arrow { font-size: 0.65rem; color: var(--text3); transition: transform .15s; }
 .cm-type-trigger.open .cm-type-trigger-arrow { transform: rotate(180deg); }
-/* Dropdown en superposition */
+/* Dropdown en superposition hors modale */
 .cm-type-dropdown {
-  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  position: fixed;
   background: var(--surface); border: 1px solid var(--border2); border-radius: 8px;
-  overflow: hidden; z-index: 50;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  overflow: hidden; z-index: 1200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  min-width: 260px;
 }
-.cm-type-dropdown.open { display: block; }
 /* Liste dans le dropdown */
 .cm-types { display: flex; flex-direction: column; gap: 0; max-height: 220px; overflow-y: auto; }
 .cm-type-row {
@@ -309,7 +310,7 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
         <div id="abs-scroll-area">
           <div id="abs-spinner" class="zone-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
           <div id="abs-scroll-inner">
-            <table class="abs-table" id="abs-body-table" style="display:none;">
+            <table class="abs-table" id="abs-body-table">
               <thead id="abs-thead"></thead>
               <tbody id="abs-tbody"></tbody>
             </table>
@@ -350,15 +351,12 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
     </div>
     <div class="cm-body">
       <!-- Type sélection -->
-      <div style="position:relative;">
+      <div>
         <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;">Type de congés</div>
-        <button class="cm-type-trigger" id="cm-type-trigger" onclick="toggleCmTypeDropdown()">
+        <button class="cm-type-trigger" id="cm-type-trigger" onclick="toggleCmTypeDropdown(); event.stopPropagation();">
           <span id="cm-type-trigger-label">— Choisir un type —</span>
           <span class="cm-type-trigger-arrow">▾</span>
         </button>
-        <div class="cm-type-dropdown" id="cm-type-dropdown">
-          <div class="cm-types" id="cm-type-pills"></div>
-        </div>
       </div>
       <!-- Calendrier navigable multi-mois -->
       <div>
@@ -409,9 +407,7 @@ const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct'
 // ── RENDER ABSENCES TABLE ──
 function renderAbsences() {
     const sp = document.getElementById('abs-spinner');
-    const tbl = document.getElementById('abs-body-table');
     if (sp) sp.style.display = 'none';
-    if (tbl) tbl.style.display = '';
     const startOfMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth(), 1);
     const daysInMonth = new Date(state.absMonth.getFullYear(), state.absMonth.getMonth() + 1, 0).getDate();
     const monthLabel = state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -589,9 +585,7 @@ async function loadMonthData() {
   const lbl = document.getElementById('header-month-label');
   if (lbl) lbl.textContent = 'Chargement…';
   const sp = document.getElementById('abs-spinner');
-  const tbl = document.getElementById('abs-body-table');
   if (sp) sp.style.display = 'flex';
-  if (tbl) tbl.style.display = 'none';
   console.log('[loadMonthData] Mois chargé:', state.absMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
   await Promise.all([
     fetchSchoolHolidays(state.absMonth),
@@ -622,7 +616,7 @@ document.getElementById('mp-prev-year').addEventListener('click', function(e) {
 document.getElementById('mp-next-year').addEventListener('click', function(e) {
   e.stopPropagation(); _mpYear++; renderMonthPicker();
 });
-document.addEventListener('click', function() { closeMonthPicker(); });
+document.addEventListener('click', function() { closeMonthPicker(); closeCmTypeDropdown(); });
 
 document.getElementById('btn-settings').addEventListener('click', function() { showConfigModal(); });
 document.getElementById('cfg-overlay').addEventListener('click', closeCfgSidebar);
@@ -682,7 +676,7 @@ function openCongeModal(workerId) {
   document.getElementById('conge-modal-overlay').classList.add('show');
   // Fermer le dropdown type si clic en dehors
   setTimeout(() => {
-    document.getElementById('conge-modal').addEventListener('click', function handler(e) {
+    document.getElementById('conge-modal').addEventListener('click', function(e) {
       if (!e.target.closest('#cm-type-trigger') && !e.target.closest('#cm-type-dropdown')) {
         closeCmTypeDropdown();
       }
@@ -736,14 +730,24 @@ function toggleCmTypeDropdown() {
   const dd = document.getElementById('cm-type-dropdown');
   const tr = document.getElementById('cm-type-trigger');
   if (!dd || !tr) return;
-  const isOpen = dd.classList.contains('open');
-  if (isOpen) { dd.classList.remove('open'); tr.classList.remove('open'); }
-  else { dd.classList.add('open'); tr.classList.add('open'); }
+  const isOpen = dd.style.display !== 'none';
+  if (isOpen) {
+    dd.style.display = 'none';
+    tr.classList.remove('open');
+  } else {
+    // Positionner sous le trigger
+    const rect = tr.getBoundingClientRect();
+    dd.style.display = 'block';
+    dd.style.top = (rect.bottom + 4) + 'px';
+    dd.style.left = rect.left + 'px';
+    dd.style.width = rect.width + 'px';
+    tr.classList.add('open');
+  }
 }
 function closeCmTypeDropdown() {
   const dd = document.getElementById('cm-type-dropdown');
   const tr = document.getElementById('cm-type-trigger');
-  if (dd) dd.classList.remove('open');
+  if (dd) dd.style.display = 'none';
   if (tr) tr.classList.remove('open');
 }
 window.toggleCmTypeDropdown = toggleCmTypeDropdown;
@@ -1012,5 +1016,9 @@ window.validateConges = validateConges;
 loadState();
 initApp();
 </script>
+<!-- Dropdown types congés — body level pour déborder hors de la modale -->
+<div class="cm-type-dropdown" id="cm-type-dropdown" style="display:none;" onclick="event.stopPropagation();">
+  <div class="cm-types" id="cm-type-pills"></div>
+</div>
 </body>
 </html>
