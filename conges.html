@@ -521,8 +521,8 @@ function renderAbsences() {
             const fillSpan = sb.isVac
                 ? '<span style="position:absolute;inset:0 0 0 1px;background:var(--red);z-index:0;pointer-events:none;"></span>'
                 : '';
-            // Label S× dans le dernier sous-bloc de la semaine, aligné à droite, blanc gras
-            const label = isLast ? '<span style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:0.48rem;font-weight:800;color:#fff;line-height:1;z-index:1;pointer-events:none;">S' + wb.weekNum + '</span>' : '';
+            // Label S× dans le 1er sous-bloc de la semaine, aligné à gauche, même style que les jours
+            const label = isFirst ? '<span style="position:absolute;left:2px;top:50%;transform:translateY(-50%);font-size:0.6rem;font-weight:700;color:#fff;line-height:1;z-index:1;pointer-events:none;">S' + wb.weekNum + '</span>' : '';
             weekRow += '<th colspan="' + sb.span + '" class="day-th" style="background:transparent;position:relative;padding:0;height:5px;line-height:5px;overflow:hidden;' + (isFirst ? 'border-left:2px solid rgba(255,255,255,0.10);' : 'border-left:none;') + 'border-bottom:1px solid rgba(255,255,255,0.08);">' + fillSpan + label + '</th>';
         });
     });
@@ -655,11 +655,11 @@ async function generateAbsPDF() {
     vert:  [0, 200, 150],  bleu:   [59, 143, 255],
     jaune: [255, 208, 96]
   };
-  const BLUE_H  = [59, 143, 255];
-  const RED_H   = [255, 77, 109];
+  const BLUE_H  = [30, 100, 220];
+  const RED_H   = [220, 30, 70];
   const GREY_BG = [235, 238, 242];
-  const SAT_BG  = [200, 230, 255]; // ACCENTUÉ
-  const SUN_BG  = [255, 210, 220]; // ACCENTUÉ
+  const SAT_BG  = [180, 215, 255];
+  const SUN_BG  = [255, 180, 195];
   const HDR_BG  = [245, 246, 248];
 
   const today = new Date().toLocaleDateString('fr-FR');
@@ -754,22 +754,26 @@ async function generateAbsPDF() {
       }
       if (sbSpan > 0) subBlocks.push({ startDay: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
 
-      // Le label S× va dans le 1er sous-bloc de la semaine
+      // Dessiner les sous-blocs avec bordure (comme le tableau HTML)
       subBlocks.forEach((sb, sbi) => {
         const sx = marginL + nameColW + (sb.startDay - 1) * dayColW;
         const sw = sb.span * dayColW;
         if (sb.isVac) {
           doc.setFillColor(...RED_H);
-          doc.rect(sx, marginT, sw, weekRowH, 'F');
+        } else {
+          doc.setFillColor(...HDR_BG);
         }
-        // Pas de bordure sur la ligne semaine (fine, épurée)
+        doc.rect(sx, marginT, sw, weekRowH, 'F');
+        doc.setDrawColor(210, 212, 218);
+        doc.setLineWidth(0.2);
+        doc.rect(sx, marginT, sw, weekRowH, 'S');
         if (sb.first) {
-          // Label dans le 1er sous-bloc
+          // Label S× à gauche du 1er sous-bloc, même style que les jours
           const wLabel = 'S' + wb.weekNum;
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(3.5);
-          doc.setTextColor(sb.isVac ? 255 : 130, sb.isVac ? 255 : 140, sb.isVac ? 255 : 155);
-          doc.text(wLabel, sx + 0.5, marginT + weekRowH - 0.5);
+          doc.setFontSize(4);
+          doc.setTextColor(sb.isVac ? 255 : 80, sb.isVac ? 255 : 90, sb.isVac ? 255 : 110);
+          doc.text(wLabel, sx + 0.8, marginT + weekRowH - 0.6);
         }
       });
     });
