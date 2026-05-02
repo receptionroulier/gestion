@@ -513,12 +513,17 @@ function renderAbsences() {
         }
         if (sbSpan > 0) subBlocks.push({ startCol: sbStart, span: sbSpan, isVac: sbVac, first: sbFirst });
 
+        const lastIdx = subBlocks.length - 1;
         subBlocks.forEach((sb, sbi) => {
             const isFirst = sb.first;
-            const bgVac = sb.isVac ? 'background:var(--red);color:#fff;' : 'background:transparent;color:var(--text3);';
-            // Afficher le label S× uniquement dans le 1er sous-bloc de la semaine
-            const label = isFirst ? 'S' + wb.weekNum : '';
-            weekRow += '<th colspan="' + sb.span + '" class="day-th" style="' + bgVac + 'font-size:0.52rem;font-weight:700;letter-spacing:0.03em;padding:0 1px;height:9px;line-height:9px;' + (isFirst ? 'border-left:2px solid rgba(255,255,255,0.10);' : '') + 'border-bottom:1px solid rgba(255,255,255,0.08);">' + label + '</th>';
+            const isLast = sbi === lastIdx;
+            // Fond rouge via span absolu inséré dans la cellule (1px de marge sur les bords pour ne pas déborder sur les bordures)
+            const fillSpan = sb.isVac
+                ? '<span style="position:absolute;inset:0 0 0 1px;background:var(--red);z-index:0;pointer-events:none;"></span>'
+                : '';
+            // Label S× dans le dernier sous-bloc de la semaine, aligné à droite, blanc gras
+            const label = isLast ? '<span style="position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:0.48rem;font-weight:800;color:#fff;line-height:1;z-index:1;pointer-events:none;">S' + wb.weekNum + '</span>' : '';
+            weekRow += '<th colspan="' + sb.span + '" class="day-th" style="background:transparent;position:relative;padding:0;height:5px;line-height:5px;overflow:hidden;' + (isFirst ? 'border-left:2px solid rgba(255,255,255,0.10);' : 'border-left:none;') + 'border-bottom:1px solid rgba(255,255,255,0.08);">' + fillSpan + label + '</th>';
         });
     });
     weekRow += '</tr>';
