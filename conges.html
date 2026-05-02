@@ -520,22 +520,23 @@ function renderAbsences() {
 
 // ── PDF ABSENCES — sélection des mois puis génération jsPDF ──
 function printAbsPDF() {
-  // Ouvre la modale de sélection des mois
   const overlay = document.getElementById('pdf-month-select-overlay');
   if (!overlay) return;
 
-  // Pré-coche le mois courant
   const curY = state.absMonth.getFullYear();
   const curM = state.absMonth.getMonth();
-  overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
-    const m = parseInt(cb.dataset.month);
-    const y = parseInt(cb.dataset.year);
-    cb.checked = (m === curM && y === curY);
-  });
-  // Met à jour l'année affichée
+
+  // 1. Afficher l'année
   document.getElementById('pdf-sel-year').textContent = curY;
   document.getElementById('pdf-sel-year').dataset.year = curY;
+
+  // 2. Créer les cases à cocher
   renderPdfMonthCheckboxes(curY);
+
+  // 3. Pré-cocher le mois courant (cases maintenant dans le DOM)
+  overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.checked = (parseInt(cb.dataset.month) === curM && parseInt(cb.dataset.year) === curY);
+  });
 
   overlay.classList.add('show');
 }
@@ -563,6 +564,14 @@ function changePdfYear(delta) {
   el.dataset.year = y;
   el.textContent = y;
   renderPdfMonthCheckboxes(y);
+  // Pré-cocher le mois courant si on revient sur l'année courante
+  const curY = state.absMonth.getFullYear();
+  const curM = state.absMonth.getMonth();
+  if (y === curY) {
+    document.getElementById('pdf-month-grid').querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.checked = (parseInt(cb.dataset.month) === curM);
+    });
+  }
 }
 window.changePdfYear = changePdfYear;
 
