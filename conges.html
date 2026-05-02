@@ -379,7 +379,8 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
     </div>
     <div class="cm-footer">
       <button class="cm-footer-btn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2);" onclick="closeCongeModal()">Annuler</button>
-      <button class="cm-footer-btn" style="background:var(--accent);color:#000;" onclick="validateConges()">✓ Valider</button>
+      <button class="cm-footer-btn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2);" onclick="validateConges(true)" title="Valider et envoyer un email">✉ Mail</button>
+      <button class="cm-footer-btn" style="background:var(--accent);color:#000;" onclick="validateConges(false)">✓ Valider</button>
     </div>
   </div>
 </div>
@@ -987,7 +988,7 @@ function confirmChoice(yes) {
 window.confirmChoice = confirmChoice;
 
 // ── VALIDATION ──
-async function validateConges() {
+async function validateConges(sendMail = false) {
   if (_cmSelections.length === 0) {
     toast('Aucune plage sélectionnée', 'error');
     return;
@@ -1009,8 +1010,42 @@ async function validateConges() {
   closeCongeModal();
   await saveCongesRemote();
   toast('Congés enregistrés ✓');
+
+  if (sendMail) {
+    sendCongesMail(_cmWorkerId, _cmSelections);
+  }
 }
 window.validateConges = validateConges;
+
+// ── ENVOI MAIL CONGÉS ──
+function sendCongesMail(workerId, selections) {
+  const worker = getWorker(workerId);
+  if (!worker) return;
+  const workerName = worker.lastName + ' ' + worker.firstName;
+
+  // Résumé des plages
+  const lignes = selections.map(sel => {
+    const mainCode = sel.code;
+    const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
+    const fromFR = isoToFR(sel.from);
+    const toFR = isoToFR(sel.to);
+    return sel.from === sel.to
+      ? '  - ' + mainCode + ' : ' + fromFR + ' (' + mainDays + ' j)'
+      : '  - ' + mainCode + ' : ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + ')';
+  });
+
+  const subject = 'Demande de congés — ' + workerName;
+  const body = 'Bonjour,\n\nVeuillez trouver ci-dessous la demande de congés pour ' + workerName + ' :\n\n' + lignes.join('\n') + '\n\nCordialement.';
+
+  const to  = state.config.emailWeek  || '';
+  const cc  = state.config.emailCcWeek || '';
+  const bcc = state.config.emailBccWeek || '';
+  const ccPart  = cc  ? '&cc='  + encodeURIComponent(cc)  : '';
+  const bccPart = bcc ? '&bcc=' + encodeURIComponent(bcc) : '';
+
+  window.open('mailto:' + to + '?' + 'subject=' + encodeURIComponent(subject) + ccPart + bccPart + '&body=' + encodeURIComponent(body));
+}
+window.sendCongesMail = sendCongesMail;
 
 
 loadState();
