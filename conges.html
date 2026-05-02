@@ -50,12 +50,8 @@ main { display: flex; flex: 1; min-height: 0; }
 #abs-scroll-area { flex: 1; overflow: auto; min-height: 0; position: relative; }
 #abs-scroll-inner { padding: 0 12px 20px; }
 .abs-table { border-collapse: separate; border-spacing: 0; font-size: 0.65rem; background: transparent; min-width: 100%; table-layout: fixed; }
-/* Ligne jours : sticky à 10px (sous la ligne semaines) */
-.abs-table thead tr th { position: sticky; top: 10px; z-index: 2; background: var(--surface); padding: 4px 2px; text-align: center; color: var(--text); font-size: 0.6rem; height: 32px; box-sizing: border-box; font-weight: 700; border-bottom: 2px solid var(--border2); }
-/* Ligne semaines : sticky à 0, passe au-dessus de tout */
-.abs-table thead tr.week-row th { position: sticky; top: 0; z-index: 5; height: 10px !important; max-height: 10px !important; padding: 0 !important; line-height: 10px !important; border-bottom: none !important; font-size: 0 !important; background: var(--surface); }
-/* Cellule coin Personnel en ligne semaines : invisible */
-.abs-table thead tr.week-row th.member-cell { background: var(--surface) !important; border: none !important; left: 0; z-index: 6 !important; }
+.abs-table thead tr th { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 4px 2px; text-align: center; color: var(--text); font-size: 0.6rem; height: 32px; box-sizing: border-box; font-weight: 700; border-bottom: 2px solid var(--border2); }
+.abs-table thead tr.week-row th { height: 10px !important; max-height: 10px !important; padding: 0 !important; line-height: 10px !important; border-bottom: none !important; font-size: 0 !important; background: var(--surface); }
 .abs-table thead tr th.member-cell { position: sticky; left: 0; z-index: 3; text-align: left; padding-left: 10px; }
 .abs-table thead tr th.day-th { border-left: 1px solid rgba(255,255,255,0.08); background-color: var(--surface); background-blend-mode: normal; }
 .abs-table tbody tr td { padding: 0; text-align: center; height: 28px; box-sizing: border-box; border: none; }
@@ -316,11 +312,13 @@ tr:hover .btn-demande-conge { opacity: 1; pointer-events: all; }
     </div>
     <div id="content">
       <div id="view-absences">
+        <div id="abs-header-wrap" style="flex-shrink:0;overflow:hidden;padding:0 12px;">
+          <table class="abs-table" id="abs-header-table" style="table-layout:fixed;min-width:100%;"></table>
+        </div>
         <div id="abs-scroll-area">
           <div id="abs-spinner" class="zone-spinner"><div class="spinner-ring"></div><span class="spinner-label">Chargement…</span></div>
           <div id="abs-scroll-inner">
-            <table class="abs-table" id="abs-body-table">
-              <thead id="abs-thead"></thead>
+            <table class="abs-table" id="abs-body-table" style="table-layout:fixed;min-width:100%;">
               <tbody id="abs-tbody"></tbody>
             </table>
           </div>
@@ -576,7 +574,23 @@ function renderAbsences() {
         rows += `<tr style="--row-color:${rowColor};">${memberCell}${dayCells}</tr><tr class="abs-spacer"><td colspan="${daysInMonth + 1}"></td></tr>`;
     });
 
-    bodyTable.innerHTML = colgroup + '<thead>' + weekRow + headerRow + '</thead><tbody>' + rows + '</tbody>';
+    // Table header séparée (fixe, ne scrolle pas)
+    const headerTable = document.getElementById('abs-header-table');
+    if (headerTable) {
+        headerTable.innerHTML = colgroup + '<thead>' + weekRow + headerRow + '</thead>';
+    }
+    // Table body (scrolle)
+    bodyTable.innerHTML = colgroup + '<tbody>' + rows + '</tbody>';
+
+    // Synchroniser le scroll horizontal du header avec le body
+    const scrollArea = document.getElementById('abs-scroll-area');
+    const headerWrap = document.getElementById('abs-header-wrap');
+    if (scrollArea && headerWrap) {
+        // Enlever l'ancien listener pour éviter les doublons
+        if (scrollArea._headerSyncFn) scrollArea.removeEventListener('scroll', scrollArea._headerSyncFn);
+        scrollArea._headerSyncFn = () => { headerWrap.scrollLeft = scrollArea.scrollLeft; };
+        scrollArea.addEventListener('scroll', scrollArea._headerSyncFn);
+    }
     // Event delegation pour les boutons demande de congé
     bodyTable.querySelectorAll('.btn-demande-conge').forEach(btn => {
         btn.addEventListener('click', function(e) {
