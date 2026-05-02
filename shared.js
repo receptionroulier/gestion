@@ -119,8 +119,8 @@ function toast(msg, type='ok') {
   const t = document.getElementById('toast');
   if (!t) return;
   t.textContent = msg;
-  t.style.background = type === 'error' ? 'var(--red)' : 'var(--accent)';
-  t.style.color = '#fff';
+  t.style.background = type === 'error' ? 'var(--red)' : type === 'info' ? 'var(--surface2)' : 'var(--accent)';
+  t.style.color = type === 'info' ? 'var(--text2)' : '#fff';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
 }
@@ -950,72 +950,303 @@ async function _savePDFWithFallback(doc, fileName, configuredPath) {
     doc.save(fileName);
 }
 
-async function generatePDF(dayIdx = null, pdfType = null) {
-    const { jsPDF } = window.jspdf;
-    if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
-    const doc = new jsPDF();
-    const wn = getWeekNum(state.weekStart);
-    let title = "", fileName = "", rows = [];
-    const sectionsMap = getSectionsMap();
+// ── PDF GRAPHIQUE — HELPERS COMMUNS ──
+function _pdfParseColor(str) {
+  if (!str) return [120, 130, 145];
+  const h = str.replace('#', '');
+  if (h.length === 6) return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  const m = str.match(/\d+/g);
+  if (m && m.length >= 3) return [+m[0], +m[1], +m[2]];
+  return [120, 130, 145];
+}
 
-    if (dayIdx === null) {
-        title = `Effectif Parc Roulier - Semaine ${wn}`;
-        fileName = `Planning_Réception_Semaine${wn}.pdf`;
-        for(let i=0; i<7; i++) {
-            rows.push([`${DAYS[i]} ${fmtFR(addDays(state.weekStart, i))}`, '']);
-            SECTIONS_ORDER.forEach(secId => {
-                const sec = sectionsMap[secId];
-                const slots = state.slots[i]?.[secId] || [];
-                slots.forEach(s => {
-                    const w = getWorker(state.planning[gkey(`${i}_${secId}_${s.id}`)]);
-                    rows.push([`  ${sec.name} (${s.label})`, w ? `${w.lastName} ${w.firstName}` : 'Non affecté']);
-                });
-            });
-            rows.push([]);
-        }
-    } else {
-        const d = addDays(state.weekStart, dayIdx);
-        const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
-        title = `Effectif Parc Roulier - ${DAYS[dayIdx]} ${dateStr}`;
-        fileName = `Planning_Réception_du_${dateStr.replace(/ /g,'_')}.pdf`;
-        SECTIONS_ORDER.forEach(secId => {
-            const sec = sectionsMap[secId];
-            const slots = state.slots[dayIdx]?.[secId] || [];
-            rows.push([sec.name, '']);
-            slots.forEach(s => {
-                const w = getWorker(state.planning[gkey(`${dayIdx}_${secId}_${s.id}`)]);
-                rows.push([`  ${s.label}`, w ? `${w.lastName} ${w.firstName}` : 'Non affecté']);
-            });
-        });
+const _PDF_COLOR_MAP_RGB = { rouge:[255,77,109], violet:[167,139,250], vert:[0,200,150], bleu:[59,143,255], jaune:[255,208,96] };
+const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+// Dessine l'effectif d'un jour sur le doc jsPDF à partir de la position y donnée.
+// Retourne le nouveau y après le rendu.
+function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
+  const BLUE = [47, 117, 181];
+  const GREY_CARD = [200, 205, 215];
+  const H = 297;
+  const sectionsMap = getSectionsMap();
+  const daySlots = state.slots[dayIdx] || {};
+
+  const cardW = W - 2 * margin;
+  const cmCardH = 10;
+  const memberH = 9;
+  const secTitleH = 7;
+  const hoursH = 5;
+  const innerPad = 3;
+  const memberPad = 2;
+
+  let y = startY;
+
+  SECTIONS_ORDER.forEach(secId => {
+    const sec = sectionsMap[secId];
+    const slots = daySlots[secId] || [];
+    if (slots.length === 0) return;
+
+    const secRGB = _pdfParseColor(sec.color);
+
+    // Titre chantier
+    if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
+    doc.setFillColor(...secRGB);
+    doc.rect(margin, y, cardW, secTitleH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(sec.name.toUpperCase(), margin + 4, y + 5);
+    y += secTitleH;
+
+    // Horaire
+    if (sec.hours) {
+      if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
+      doc.setFillColor(240, 243, 248);
+      doc.rect(margin, y, cardW, hoursH, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(80, 90, 110);
+      doc.text(sec.hours, margin + 4, y + 3.5);
+      y += hoursH;
     }
-    doc.text(title, 14, 15);
-    doc.autoTable({ startY: 20, head: [['Poste / Section', 'Personnel']], body: rows, theme: 'grid' });
 
-    // Détermine le chemin PDF configuré selon le type
-    let configuredPath = '';
-    const resolvedType = pdfType || (dayIdx === null ? 'weekly' : 'daily');
-    if (resolvedType === 'daily') configuredPath = state.config.pdfPathDaily || '';
-    else if (resolvedType === 'weekly') configuredPath = state.config.pdfPathWeekly || '';
-    else if (resolvedType === 'conges') configuredPath = state.config.pdfPathConges || '';
+    y += 2;
 
-    await _savePDFWithFallback(doc, fileName, configuredPath);
+    const membersInSec = slots.map(slot => {
+      const key = gkey(dayIdx + '_' + secId + '_' + slot.id);
+      const workerId = state.planningModified[key] !== undefined ? state.planningModified[key] : state.planning[key];
+      const w = getWorker(workerId);
+      return { slot, workerId, w };
+    });
+
+    const membersHeight = membersInSec.length * (memberH + memberPad);
+    const cmLabelH = 5;
+    const totalCMH = innerPad + cmLabelH + memberPad + membersHeight + innerPad;
+
+    if (y + totalCMH > H - 15) { doc.addPage(); y = 20; }
+
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'F');
+    doc.setDrawColor(...GREY_CARD);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 110, 125);
+    doc.text('Chef de Manutention', margin + innerPad + 1, y + innerPad + 4);
+
+    let cy = y + innerPad + cmLabelH + memberPad;
+
+    membersInSec.forEach(({ slot, workerId, w }) => {
+      if (cy + memberH > H - 15) { doc.addPage(); cy = 20; }
+
+      const workerColorKey = state.config?.workerColors?.[workerId];
+      const memberRGB = workerColorKey ? _PDF_COLOR_MAP_RGB[workerColorKey] : [180, 185, 195];
+      const displayName = w ? (w.lastName + ' ' + w.firstName) : (workerId ? 'Hors groupe' : '—');
+      const displayMatric = w ? (w.matricule || '—') : '—';
+
+      const mLeft = margin + innerPad;
+      const mW = cardW - 2 * innerPad;
+
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
+      doc.setDrawColor(...memberRGB);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
+      doc.setFillColor(...memberRGB);
+      doc.rect(mLeft, cy, 2.5, memberH, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(30, 35, 50);
+      doc.text(displayName, mLeft + 5, cy + memberH / 2 + 1.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(130, 140, 155);
+      const mW2 = doc.getTextWidth(displayMatric);
+      doc.text(displayMatric, mLeft + mW - mW2 - 3, cy + memberH / 2 + 1.5);
+
+      if (slot.label && slot.label !== displayName) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.5);
+        doc.setTextColor(150, 160, 175);
+        doc.text(slot.label, mLeft + 5, cy + memberH - 1.5);
+      }
+
+      cy += memberH + memberPad;
+    });
+
+    y = cy + 3;
+  });
+
+  return y;
+}
+
+// ── PDF JOURNALIER ──
+async function generateDayPDF(dayIdx) {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  const BLUE = [47, 117, 181];
+  const d = addDays(state.weekStart, dayIdx);
+  const dayName = DAYS[dayIdx];
+  const dateLabel = dayName + ' ' + d.getDate() + ' ' + _MONTHS_LONG[d.getMonth()] + ' ' + d.getFullYear();
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, margin = 14;
+
+  // Header
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setFontSize(20);
+  doc.setTextColor(...BLUE);
+  doc.text('TRANSMANUTENTION', margin, 15);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 20, W - margin, 20);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30, 35, 50);
+  doc.text('Effectif Équipe Parc Réception Roulier', margin, 28);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(80, 90, 110);
+  doc.text('pour ' + dateLabel, margin, 34);
+
+  _pdfRenderDay(doc, dayIdx, W, margin, 42);
+
+  // Pied de page
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(170, 170, 180);
+  doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
+
+  const safeName = dateLabel.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9-]/g,'_');
+  await _savePDFWithFallback(doc, 'Effectif_' + safeName + '.pdf', state.config.pdfPathDaily || '');
+}
+
+// ── PDF HEBDOMADAIRE ──
+async function generateWeeklyPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  const BLUE = [47, 117, 181];
+  const wn = getWeekNum(state.weekStart);
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, H = 297, margin = 14;
+
+  let firstPage = true;
+
+  for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+    // Vérifier si ce jour a des slots
+    const daySlots = state.slots[dayIdx] || {};
+    const hasSlots = SECTIONS_ORDER.some(secId => (daySlots[secId] || []).length > 0);
+    if (!hasSlots) continue;
+
+    if (!firstPage) doc.addPage();
+    firstPage = false;
+
+    const d = addDays(state.weekStart, dayIdx);
+    const dayName = DAYS[dayIdx];
+    const dateLabel = dayName + ' ' + d.getDate() + ' ' + _MONTHS_LONG[d.getMonth()] + ' ' + d.getFullYear();
+
+    // Header de page
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(20);
+    doc.setTextColor(...BLUE);
+    doc.text('TRANSMANUTENTION', margin, 15);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 20, W - margin, 20);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 35, 50);
+    doc.text('Effectif Équipe Parc Réception Roulier', margin, 27);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 90, 110);
+    doc.text(dateLabel + '  —  Semaine ' + wn, margin, 33);
+
+    _pdfRenderDay(doc, dayIdx, W, margin, 40);
+
+    // Pied de page
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(170, 170, 180);
+    doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
+  }
+
+  if (firstPage) {
+    // Aucun jour avec données
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(120, 130, 145);
+    doc.text('Aucune affectation pour la semaine ' + wn, margin, 50);
+  }
+
+  await _savePDFWithFallback(doc, `Planning_Réception_Semaine${wn}.pdf`, state.config.pdfPathWeekly || '');
 }
 
 async function sendDailyMail(dayIdx) {
     const d = addDays(state.weekStart, dayIdx);
     const dateStr = d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-    await generatePDF(dayIdx, 'daily');
+    const subject = 'Planning Réception du ' + fmtFR(d);
+
+    toast('⏳ Génération du PDF en cours…', 'info');
+    try {
+        await generateDayPDF(dayIdx);
+    } catch(e) {
+        toast('Erreur génération PDF', 'error');
+        return;
+    }
+
     const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour le ${dateStr}.`;
     const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
-    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}${bcc}&subject=${encodeURIComponent('Planning Réception du ' + fmtFR(d))}&body=${encodeURIComponent(body)}`);
+    const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Ouverture via un lien <a> pour maximiser la compatibilité avec Outlook sur Windows
+    const a = document.createElement('a');
+    a.href = mailtoUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+
+    toast(`📧 "${subject}" — ouverture du client mail…`);
 }
 
 async function sendWeeklyMail() {
     const wn = getWeekNum(state.weekStart);
-    await generatePDF(null, 'weekly');
+    const subject = 'Planning Hebdo Semaine ' + wn;
+
+    toast('⏳ Génération du PDF en cours…', 'info');
+    try {
+        await generateWeeklyPDF();
+    } catch(e) {
+        toast('Erreur génération PDF', 'error');
+        return;
+    }
+
     const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour la Semaine ${wn}.`;
     const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
-    window.open(`mailto:${state.config.emailWeek}?cc=${state.config.emailCcWeek}${bcc}&subject=${encodeURIComponent('Planning Hebdo Semaine ' + wn)}&body=${encodeURIComponent(body)}`);
+    const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Ouverture via un lien <a> pour maximiser la compatibilité avec Outlook sur Windows
+    const a = document.createElement('a');
+    a.href = mailtoUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+
+    toast(`📧 "${subject}" — ouverture du client mail…`);
 }
 
 // ── TYPES DE CONGÉS ──
@@ -1143,7 +1374,8 @@ window.setWorkerColor = setWorkerColor;
 window.saveConfig = saveConfig;
 window.saveVacancesConfig = saveVacancesConfig;
 window.saveAbsConfig = saveAbsConfig;
-window.generatePDF = generatePDF;
+window.generateDayPDF = generateDayPDF;
+window.generateWeeklyPDF = generateWeeklyPDF;
 window.sendWeeklyMail = sendWeeklyMail;
 window.sendDailyMail = sendDailyMail;
 window.DAYS = DAYS;
