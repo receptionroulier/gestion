@@ -1001,7 +1001,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     if (sec.hours) {
       if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
       doc.setFillColor(235, 239, 246);
-      doc.roundedRect(margin, y, cardW, hoursH, 0, 2, 'F'); // arrondi bas seulement
+      doc.rect(margin, y, cardW, hoursH, 'F'); // pas d'arrondi
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(70, 85, 110);
@@ -1011,7 +1011,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       y += hoursH;
     }
 
-    y += 3; // espace entre bloc horaire/titre et les cartes membres
+    // pas d'espace entre bloc horaire/titre et les cartes membres
 
     const membersInSec = slots.map(slot => {
       const key = gkey(dayIdx + '_' + secId + '_' + slot.id);
@@ -1051,21 +1051,17 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
 
-      // Liseré gauche couleur membre (fin, pas de fond coloré)
-      doc.setFillColor(...memberRGB);
-      doc.rect(mLeft, cy + 1, 2, memberH - 2, 'F');
-
-      // Contour discret
-      doc.setDrawColor(...GREY_CARD);
-      doc.setLineWidth(0.25);
+      // Liseré couleur membre autour de la carte (pas de rectangle vertical)
+      doc.setDrawColor(...memberRGB);
+      doc.setLineWidth(0.6);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
 
-      const textLeft = mLeft + 5;
+      const textLeft = mLeft + 4;
 
-      // Poste — à gauche, gras, couleur membre
+      // Poste — à gauche, gras, gris
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(...memberRGB);
+      doc.setTextColor(130, 140, 160);
       doc.text(postLabel, textLeft, midY);
 
       // NOM Prénom — au centre (après le poste + un gap fixe)
@@ -1196,16 +1192,28 @@ async function generateWeeklyPDF() {
     doc.setLineWidth(0.5);
     doc.line(margin, 20, W - margin, 20);
 
+    const titreBaseH  = 'Effectif Équipe Parc Réception Roulier';
+    const titreSuiteH = '  du  ' + dateLabel;
+    const fsH = 11;
+    doc.setFontSize(fsH);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(30, 35, 50);
-    doc.text('Effectif Équipe Parc Réception Roulier', margin, 27);
+    const baseWH = doc.getTextWidth(titreBaseH);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(80, 90, 110);
-    doc.text(dateLabel + '  —  Semaine ' + wn, margin, 33);
+    const suiteWH = doc.getTextWidth(titreSuiteH);
+    const totalWH = baseWH + suiteWH;
+    const usableH = W - 2 * margin;
+    const scaleH  = totalWH > usableH ? usableH / totalWH : 1;
+    const fsFinalH = fsH * scaleH;
 
-    _pdfRenderDay(doc, dayIdx, W, margin, 40);
+    doc.setFontSize(fsFinalH);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 35, 50);
+    doc.text(titreBaseH, margin, 29);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 90, 110);
+    doc.text(titreSuiteH, margin + baseWH * scaleH, 29);
+
+    _pdfRenderDay(doc, dayIdx, W, margin, 36);
 
     // Pied de page
     doc.setFont('helvetica', 'normal');
