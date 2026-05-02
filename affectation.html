@@ -501,7 +501,6 @@ function renderWeekHeader() {
       <div class="day-name">${name}</div>
       <div class="day-num">${fmtFR(d)}</div>
       <div class="day-mail-btn" onclick="event.stopPropagation(); sendDailyMail(${i})">💬</div>
-      <div class="day-mail-btn" style="right:28px;" onclick="event.stopPropagation(); generateDayPDF(${i})">🖨</div>
     `;
 
     const handle = document.createElement('div');

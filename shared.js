@@ -967,15 +967,14 @@ const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet'
 // Retourne le nouveau y après le rendu.
 function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
   const BLUE = [47, 117, 181];
-  const GREY_CARD = [200, 205, 215];
+  const GREY_CARD = [210, 215, 222];
   const H = 297;
   const sectionsMap = getSectionsMap();
   const daySlots = state.slots[dayIdx] || {};
 
   const cardW = W - 2 * margin;
-  const cmCardH = 10;
-  const memberH = 9;
-  const secTitleH = 7;
+  const memberH = 12;   // plus de hauteur pour loger poste + nom
+  const secTitleH = 8;
   const hoursH = 5;
   const innerPad = 3;
   const memberPad = 2;
@@ -989,17 +988,17 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
 
     const secRGB = _pdfParseColor(sec.color);
 
-    // Titre chantier
+    // ── Titre chantier (arrondi) ──
     if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
     doc.setFillColor(...secRGB);
-    doc.rect(margin, y, cardW, secTitleH, 'F');
+    doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(8.5);
     doc.setTextColor(255, 255, 255);
-    doc.text(sec.name.toUpperCase(), margin + 4, y + 5);
+    doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
     y += secTitleH;
 
-    // Horaire
+    // ── Horaire si présent ──
     if (sec.hours) {
       if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
       doc.setFillColor(240, 243, 248);
@@ -1007,7 +1006,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(80, 90, 110);
-      doc.text(sec.hours, margin + 4, y + 3.5);
+      doc.text(sec.hours, margin + 5, y + 3.5);
       y += hoursH;
     }
 
@@ -1020,25 +1019,21 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       return { slot, workerId, w };
     });
 
+    // Conteneur gris englobant
     const membersHeight = membersInSec.length * (memberH + memberPad);
-    const cmLabelH = 5;
-    const totalCMH = innerPad + cmLabelH + memberPad + membersHeight + innerPad;
+    const totalCMH = innerPad + membersHeight + innerPad;
 
     if (y + totalCMH > H - 15) { doc.addPage(); y = 20; }
 
     doc.setFillColor(245, 247, 250);
     doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'F');
     doc.setDrawColor(...GREY_CARD);
-    doc.setLineWidth(0.4);
+    doc.setLineWidth(0.3);
     doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'S');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(100, 110, 125);
-    doc.text('Chef de Manutention', margin + innerPad + 1, y + innerPad + 4);
+    let cy = y + innerPad;
 
-    let cy = y + innerPad + cmLabelH + memberPad;
-
+    // ── Cartes membres ──
     membersInSec.forEach(({ slot, workerId, w }) => {
       if (cy + memberH > H - 15) { doc.addPage(); cy = 20; }
 
@@ -1046,35 +1041,42 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       const memberRGB = workerColorKey ? _PDF_COLOR_MAP_RGB[workerColorKey] : [180, 185, 195];
       const displayName = w ? (w.lastName + ' ' + w.firstName) : (workerId ? 'Hors groupe' : '—');
       const displayMatric = w ? (w.matricule || '—') : '—';
+      const postLabel = slot.label || '';
 
       const mLeft = margin + innerPad;
       const mW = cardW - 2 * innerPad;
 
+      // Fond blanc arrondi
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
-      doc.setDrawColor(...memberRGB);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
+      // Bordure couleur à gauche seulement (liseré)
       doc.setFillColor(...memberRGB);
-      doc.rect(mLeft, cy, 2.5, memberH, 'F');
+      doc.roundedRect(mLeft, cy, 2.5, memberH, 1, 1, 'F');
+      // Contour général discret
+      doc.setDrawColor(...GREY_CARD);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
 
+      const textLeft = mLeft + 5;
+
+      // Poste (CM, FCQ…) — en haut à gauche, gras, plus gros
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(30, 35, 50);
-      doc.text(displayName, mLeft + 5, cy + memberH / 2 + 1.5);
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 110, 130);
+      doc.text(postLabel, textLeft, cy + 4.5);
 
+      // NOM Prénom — décalé en dessous
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(25, 30, 45);
+      doc.text(displayName, textLeft + 2, cy + memberH - 2.5);
+
+      // Matricule à droite, centré verticalement
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      doc.setTextColor(130, 140, 155);
-      const mW2 = doc.getTextWidth(displayMatric);
-      doc.text(displayMatric, mLeft + mW - mW2 - 3, cy + memberH / 2 + 1.5);
-
-      if (slot.label && slot.label !== displayName) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(5.5);
-        doc.setTextColor(150, 160, 175);
-        doc.text(slot.label, mLeft + 5, cy + memberH - 1.5);
-      }
+      doc.setTextColor(140, 150, 165);
+      const matW = doc.getTextWidth(displayMatric);
+      doc.text(displayMatric, mLeft + mW - matW - 3, cy + memberH / 2 + 1);
 
       cy += memberH + memberPad;
     });
@@ -1092,14 +1094,17 @@ async function generateDayPDF(dayIdx) {
 
   const BLUE = [47, 117, 181];
   const d = addDays(state.weekStart, dayIdx);
-  const dayName = DAYS[dayIdx];
-  const dateLabel = dayName + ' ' + d.getDate() + ' ' + _MONTHS_LONG[d.getMonth()] + ' ' + d.getFullYear();
+  // "lundi 27 avril 2026" en minuscules pour l'objet/corps, capitalisé pour le PDF
+  const dateLabelLong = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  // "Lundi 27 Avril 2026" — capitalisé pour affichage PDF
+  const dateLabelPDF = dateLabelLong.replace(/\b\w/g, c => c.toUpperCase());
   const today = new Date().toLocaleDateString('fr-FR');
+  const titre = 'Effectif Équipe Parc Réception Roulier';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, margin = 14;
 
-  // Header
+  // Header TRANSMANUTENTION
   doc.setFont('helvetica', 'bolditalic');
   doc.setFontSize(20);
   doc.setTextColor(...BLUE);
@@ -1108,16 +1113,18 @@ async function generateDayPDF(dayIdx) {
   doc.setLineWidth(0.5);
   doc.line(margin, 20, W - margin, 20);
 
+  // Titre + date sur la même ligne
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(30, 35, 50);
-  doc.text('Effectif Équipe Parc Réception Roulier', margin, 28);
+  doc.text(titre, margin, 29);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(11);
   doc.setTextColor(80, 90, 110);
-  doc.text('pour ' + dateLabel, margin, 34);
+  const titreW = doc.getTextWidth(titre);
+  doc.text('  —  ' + dateLabelPDF, margin + titreW, 29);
 
-  _pdfRenderDay(doc, dayIdx, W, margin, 42);
+  _pdfRenderDay(doc, dayIdx, W, margin, 37);
 
   // Pied de page
   doc.setFont('helvetica', 'normal');
@@ -1125,8 +1132,15 @@ async function generateDayPDF(dayIdx) {
   doc.setTextColor(170, 170, 180);
   doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
 
-  const safeName = dateLabel.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9-]/g,'_');
-  await _savePDFWithFallback(doc, 'Effectif_' + safeName + '.pdf', state.config.pdfPathDaily || '');
+  // Nom de fichier : Effectif_Parc_Roulier_du_Lundi-27-avril-2026
+  const dayCapit = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
+  const dayNum = d.getDate();
+  const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
+  const yearNum = d.getFullYear();
+  const fileName = `Effectif_Parc_Roulier_du_${dayCapit}-${dayNum}-${monthName}-${yearNum}.pdf`;
+
+  await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
+  return { dateLabelLong, fileName };
 }
 
 // ── PDF HEBDOMADAIRE ──
@@ -1195,23 +1209,22 @@ async function generateWeeklyPDF() {
 }
 
 async function sendDailyMail(dayIdx) {
-    const d = addDays(state.weekStart, dayIdx);
-    const dateStr = d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-    const subject = 'Planning Réception du ' + fmtFR(d);
-
     toast('⏳ Génération du PDF en cours…', 'info');
+    let pdfResult;
     try {
-        await generateDayPDF(dayIdx);
+        pdfResult = await generateDayPDF(dayIdx);
     } catch(e) {
         toast('Erreur génération PDF', 'error');
         return;
     }
 
-    const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour le ${dateStr}.`;
+    const dateLabelLong = pdfResult?.dateLabelLong || addDays(state.weekStart, dayIdx).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+    const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
+    const body = `Bonjour,\nCi-joint Effectif Parc Réception Roulier pour le ${dateLabelLong}.`;
+
     const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
     const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-    // Ouverture via un lien <a> pour maximiser la compatibilité avec Outlook sur Windows
     const a = document.createElement('a');
     a.href = mailtoUrl;
     a.style.display = 'none';
