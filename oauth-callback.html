@@ -1,0 +1,6 @@
+<script>
+  const code = new URLSearchParams(location.search).get('code');
+  const from = sessionStorage.getItem('gmailAuthFrom') || '';
+  window.opener?.postMessage({ type: 'gmailOAuthCode', code, fromAddress: from }, '*');
+  window.close();
+</script>
