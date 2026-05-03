@@ -56,33 +56,19 @@ async function _sendViaProxy({ subject, bodyText, fileName, pdfBase64 }) {
 // ═══════════════════════════════════════════════════════════════
 
 async function _savePDFWithFallback(doc, fileName, configuredPath) {
+  // Téléchargement silencieux — jamais de sélecteur de fichier, jamais d'ouverture du PDF.
+  // configuredPath sert uniquement à extraire un nom de fichier suggéré si défini.
+  const saveName = (configuredPath || '').replace(/\\/g, '/').split('/').pop() || fileName;
   const blob = doc.output('blob');
-  if (configuredPath && typeof window.showSaveFilePicker === 'function') {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: fileName,
-        startIn: 'downloads',
-        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      toast('PDF enregistré ✓');
-      return;
-    } catch(e) {
-      if (e.name !== 'AbortError') console.warn('[PDF] showSaveFilePicker échec, fallback:', e);
-    }
-  }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = saveName;
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast('PDF enregistré ✓');
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function _pdfParseColor(str) {
@@ -492,8 +478,9 @@ async function sendDailyMail(dayIdx) {
   const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) {
-    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathDaily || '');
     toast('✅ Mail journalier envoyé !');
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathDaily || '');
+    toast('💾 PDF enregistré dans Téléchargements');
   }
 }
 
@@ -517,8 +504,9 @@ async function sendWeeklyMail() {
   const bodyText = `Bonjour,\n\nCi-joint prévision d'effectif Parc Réception Roulier pour la Semaine ${wn}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) {
-    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathWeekly || '');
     toast('✅ Mail hebdomadaire envoyé !');
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathWeekly || '');
+    toast('💾 PDF enregistré dans Téléchargements');
   }
 }
 
@@ -551,8 +539,9 @@ async function sendCongesMail(workerId, selections) {
   const bodyText = `Bonjour,\n\nCi-joint la demande de congés pour ${workerName} :\n\n${lignes.join('\n')}\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) {
-    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathConges || '');
     toast('✅ Mail demande de congés envoyé !');
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathConges || '');
+    toast('💾 PDF enregistré dans Téléchargements');
   }
 }
 
