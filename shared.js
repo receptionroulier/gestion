@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const PLAN_PROXY = "https://planning-proxy.receptionroulier.workers.dev";
-const GMAIL_CLIENT_ID = ""; // Remplir avec votre Client ID OAuth2 Google
+const GMAIL_CLIENT_ID = "82772284655-gplotic9gglf530nntkrhlpa6bfvub4e.apps.googleusercontent.com";
 const NAV_PROXY = "https://shgt-proxy.receptionroulier.workers.dev";
 const HOLIDAYS_BASE = "https://calendrier.api.gouv.fr/jours-feries/metropole";
 const SCHOOL_HOLIDAYS_API = 'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
