@@ -56,19 +56,21 @@ async function _sendViaProxy({ subject, bodyText, fileName, pdfBase64 }) {
 // ═══════════════════════════════════════════════════════════════
 
 async function _savePDFWithFallback(doc, fileName, configuredPath) {
-  // Téléchargement silencieux — jamais de sélecteur de fichier, jamais d'ouverture du PDF.
-  // configuredPath sert uniquement à extraire un nom de fichier suggéré si défini.
+  // Force le téléchargement sans ouvrir le PDF.
+  // On réencode en octet-stream pour contourner le comportement "ouvrir" de Chrome sur les PDF.
   const saveName = (configuredPath || '').replace(/\\/g, '/').split('/').pop() || fileName;
-  const blob = doc.output('blob');
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
+  const pdfBlob  = doc.output('blob');
+  const arrayBuf = await pdfBlob.arrayBuffer();
+  const forceBlob = new Blob([arrayBuf], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(forceBlob);
+  const a   = document.createElement('a');
+  a.href    = url;
   a.download = saveName;
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
 function _toastSaved(configuredPath) {
@@ -485,7 +487,7 @@ async function sendDailyMail(dayIdx) {
   if (ok) {
     toast('✅ Mail journalier envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathDaily || '');
-    _toastSaved(state.config.pdfPathDaily);
+    setTimeout(() => _toastSaved(state.config.pdfPathDaily), 3000);
   }
 }
 
@@ -511,7 +513,7 @@ async function sendWeeklyMail() {
   if (ok) {
     toast('✅ Mail hebdomadaire envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathWeekly || '');
-    _toastSaved(state.config.pdfPathWeekly);
+    setTimeout(() => _toastSaved(state.config.pdfPathWeekly), 3000);
   }
 }
 
@@ -546,7 +548,7 @@ async function sendCongesMail(workerId, selections) {
   if (ok) {
     toast('✅ Mail demande de congés envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathConges || '');
-    _toastSaved(state.config.pdfPathConges);
+    setTimeout(() => _toastSaved(state.config.pdfPathConges), 3000);
   }
 }
 
