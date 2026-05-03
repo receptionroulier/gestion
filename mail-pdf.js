@@ -73,7 +73,16 @@ async function _savePDFWithFallback(doc, fileName, configuredPath) {
       if (e.name !== 'AbortError') console.warn('[PDF] showSaveFilePicker échec, fallback:', e);
     }
   }
-  doc.save(fileName);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('PDF enregistré ✓');
 }
 
 function _pdfParseColor(str) {
@@ -85,7 +94,7 @@ function _pdfParseColor(str) {
   return [120, 130, 145];
 }
 
-const _PDF_COLOR_MAP_RGB = { rouge:[255,77,109], violet:[167,139,250], vert:[0,200,150], bleu:[59,143,255], jaune:[255,208,96] };
+const _PDF_COLOR_MAP_RGB = { rouge:[192,0,0], violet:[167,139,250], vert:[0,200,150], bleu:[142,169,219], jaune:[248,254,171] };
 const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 // Dessine l'effectif d'un jour sur le doc jsPDF à partir de la position y donnée.
@@ -245,7 +254,6 @@ async function generateDayPDF(dayIdx, save = true) {
   doc.setFont('helvetica', 'bold');
   const titreW = doc.getTextWidth(titre);
   const scale  = titreW > (W - 2*margin) ? (W - 2*margin) / titreW : 1;
-
   doc.setFontSize(fs * scale);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 35, 50);
@@ -256,7 +264,7 @@ async function generateDayPDF(dayIdx, save = true) {
 
   const dayCapit  = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
   const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
-  const fileName  = `Effectif_Parc_Roulier_Réception_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
+  const fileName  = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
 
   if (save) await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
   return { doc, dateLabelLong, fileName };
