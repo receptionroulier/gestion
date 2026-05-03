@@ -1,6 +1,44 @@
-<script>
-  const code = new URLSearchParams(location.search).get('code');
-  const from = sessionStorage.getItem('gmailAuthFrom') || '';
-  window.opener?.postMessage({ type: 'gmailOAuthCode', code, fromAddress: from }, '*');
-  window.close();
-</script>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Autorisation Gmail…</title>
+  <style>
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f7fa; }
+    .box { text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
+    .icon { font-size: 3rem; margin-bottom: 16px; }
+    p { color: #555; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="icon" id="icon">⏳</div>
+    <p id="msg">Autorisation en cours…</p>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code  = params.get('code');
+    const error = params.get('error');
+
+    if (error) {
+      document.getElementById('icon').textContent = '❌';
+      document.getElementById('msg').textContent  = 'Autorisation refusée : ' + error;
+    } else if (code) {
+      const fromAddress = sessionStorage.getItem('gmailAuthFrom') || '';
+      // Envoie le code à la fenêtre parente
+      if (window.opener) {
+        window.opener.postMessage({ type: 'gmailOAuthCode', code, fromAddress }, '*');
+        document.getElementById('icon').textContent = '✅';
+        document.getElementById('msg').textContent  = 'Autorisé ! Vous pouvez fermer cette fenêtre.';
+        setTimeout(() => window.close(), 1500);
+      } else {
+        document.getElementById('icon').textContent = '⚠️';
+        document.getElementById('msg').textContent  = 'Fenêtre parente introuvable. Fermez et réessayez.';
+      }
+    } else {
+      document.getElementById('icon').textContent = '⚠️';
+      document.getElementById('msg').textContent  = 'Aucun code reçu.';
+    }
+  </script>
+</body>
+</html>
