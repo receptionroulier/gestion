@@ -491,7 +491,10 @@ async function sendDailyMail(dayIdx) {
   const subject  = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
   const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
-  if (ok) toast('✅ Mail journalier envoyé !');
+  if (ok) {
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathDaily || '');
+    toast('✅ Mail journalier envoyé !');
+  }
 }
 
 async function sendWeeklyMail() {
@@ -513,7 +516,10 @@ async function sendWeeklyMail() {
   const subject  = `Prévision d'effectif Parc Réception Roulier — Semaine ${wn}`;
   const bodyText = `Bonjour,\n\nCi-joint prévision d'effectif Parc Réception Roulier pour la Semaine ${wn}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
-  if (ok) toast('✅ Mail hebdomadaire envoyé !');
+  if (ok) {
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathWeekly || '');
+    toast('✅ Mail hebdomadaire envoyé !');
+  }
 }
 
 async function sendCongesMail(workerId, selections) {
@@ -544,7 +550,10 @@ async function sendCongesMail(workerId, selections) {
   const subject  = `Demande de congés — ${workerName}`;
   const bodyText = `Bonjour,\n\nCi-joint la demande de congés pour ${workerName} :\n\n${lignes.join('\n')}\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
-  if (ok) toast('✅ Mail demande de congés envoyé !');
+  if (ok) {
+    await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathConges || '');
+    toast('✅ Mail demande de congés envoyé !');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
