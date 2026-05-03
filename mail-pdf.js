@@ -256,7 +256,7 @@ async function generateDayPDF(dayIdx, save = true) {
 
   const dayCapit  = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
   const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
-  const fileName  = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
+  const fileName  = `Effectif_Parc_Roulier_Réception_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
 
   if (save) await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
   return { doc, dateLabelLong, fileName };
