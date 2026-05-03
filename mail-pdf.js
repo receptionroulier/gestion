@@ -227,7 +227,7 @@ function _pdfFooter(doc, margin) {
 // PDF JOURNALIER
 // ═══════════════════════════════════════════════════════════════
 
-async function generateDayPDF(dayIdx) {
+async function generateDayPDF(dayIdx, save = true) {
   const { jsPDF } = window.jspdf;
   if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
 
@@ -258,7 +258,7 @@ async function generateDayPDF(dayIdx) {
   const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
   const fileName  = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
 
-  await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
+  if (save) await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
   return { doc, dateLabelLong, fileName };
 }
 
@@ -266,7 +266,7 @@ async function generateDayPDF(dayIdx) {
 // PDF HEBDOMADAIRE
 // ═══════════════════════════════════════════════════════════════
 
-async function generateWeeklyPDF() {
+async function generateWeeklyPDF(save = true) {
   const { jsPDF } = window.jspdf;
   if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
 
@@ -308,7 +308,7 @@ async function generateWeeklyPDF() {
   }
 
   const fileName = `Planning_Réception_Semaine${wn}.pdf`;
-  await _savePDFWithFallback(doc, fileName, state.config.pdfPathWeekly || '');
+  if (save) await _savePDFWithFallback(doc, fileName, state.config.pdfPathWeekly || '');
   return { doc, fileName };
 }
 
@@ -471,7 +471,7 @@ async function sendDailyMail(dayIdx) {
 
   let fileName, pdfBase64, dateLabelLong;
   try {
-    const result = await generateDayPDF(dayIdx);
+    const result = await generateDayPDF(dayIdx, false);
     if (!result) return;
     ({ dateLabelLong, fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
@@ -492,7 +492,7 @@ async function sendWeeklyMail() {
 
   let fileName, pdfBase64;
   try {
-    const result = await generateWeeklyPDF();
+    const result = await generateWeeklyPDF(false);
     if (!result) return;
     ({ fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
@@ -514,7 +514,7 @@ async function sendCongesMail(workerId, selections) {
 
   let fileName, pdfBase64;
   try {
-    const result = await generateFicheConges(workerId, selections, true);
+    const result = await generateFicheConges(workerId, selections, false);
     if (!result) return;
     ({ fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
