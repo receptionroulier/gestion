@@ -664,13 +664,20 @@ window.mergeAbsences = mergeAbsences;
 
 // ── SAVE CONGES MANUELS (KV Cloudflare) ──
 async function saveCongesRemote() {
+    // Nettoyer les workers sans aucun congé avant d'envoyer
+    const congesClean = {};
+    Object.entries(state.manualConges || {}).forEach(([wid, days]) => {
+        if (Object.keys(days).length > 0) congesClean[wid] = days;
+    });
+    console.log('[saveCongesRemote] Envoi:', JSON.stringify(congesClean));
     try {
         const r = await fetch(PLAN_PROXY, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'saveConges', conges: state.manualConges })
+            body: JSON.stringify({ type: 'saveConges', conges: congesClean })
         });
         const data = await r.json();
+        console.log('[saveCongesRemote] Réponse:', JSON.stringify(data));
         if (data.ok) {
             showSyncStatus('saved');
         } else {
@@ -678,6 +685,7 @@ async function saveCongesRemote() {
             toast('Erreur sauvegarde congés : ' + (data.error || 'inconnue'), 'error');
         }
     } catch(e) {
+        console.error('[saveCongesRemote] Erreur réseau:', e);
         showSyncStatus('offline');
         toast('Erreur réseau — congés non sauvegardés', 'error');
     }
@@ -692,7 +700,8 @@ async function loadCongesRemote() {
             body: JSON.stringify({ type: 'loadConges' })
         });
         const data = await r.json();
-        if (data.ok && data.conges) {
+        console.log('[loadCongesRemote] Réponse:', JSON.stringify(data));
+        if (data.ok && data.conges !== undefined) {
             state.manualConges = data.conges;
         }
     } catch(e) { console.error('[loadCongesRemote]', e); }
