@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const PLAN_PROXY = "https://planning-proxy.receptionroulier.workers.dev";
-const GMAIL_CLIENT_ID = "82772284655-gplotic9gglf530nntkrhlpa6bfvub4e.apps.googleusercontent.com";
+const GMAIL_CLIENT_ID = "82772284655-gplotic9gglf530nntkrhlpa6bfvub4e.apps.googleusercontent.com"; // Remplir avec votre Client ID OAuth2 Google
 const NAV_PROXY = "https://shgt-proxy.receptionroulier.workers.dev";
 const HOLIDAYS_BASE = "https://calendrier.api.gouv.fr/jours-feries/metropole";
 const SCHOOL_HOLIDAYS_API = 'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
@@ -941,7 +941,7 @@ window.saveConfig = function() {
 window.gmailAuthorize = function() {
   const fromAddress = (state.config.emailFrom || '').trim();
   if (!fromAddress) { toast('Configurez d’abord l’adresse Gmail expéditeur', 'error'); return; }
-  const redirectUri = window.location.origin + '/oauth-callback.html';
+  const redirectUri = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '') + '/oauth-callback.html';
   const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
     + '?client_id=' + encodeURIComponent(GMAIL_CLIENT_ID)
     + '&redirect_uri=' + encodeURIComponent(redirectUri)
