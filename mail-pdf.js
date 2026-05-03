@@ -171,8 +171,8 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
 
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
-      doc.setDrawColor(...GREY_CARD);
-      doc.setLineWidth(0.25);
+      doc.setDrawColor(...memberRGB);
+      doc.setLineWidth(0.5);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
 
       const textLeft = mLeft + 5;
