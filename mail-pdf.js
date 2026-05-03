@@ -56,9 +56,22 @@ async function _sendViaProxy({ subject, bodyText, fileName, pdfBase64 }) {
 // ═══════════════════════════════════════════════════════════════
 
 async function _savePDFWithFallback(doc, fileName, configuredPath) {
-  // doc.save() de jsPDF force toujours le téléchargement sans ouvrir le PDF.
   const saveName = (configuredPath || '').replace(/\\/g, '/').split('/').pop() || fileName;
-  doc.save(saveName);
+  // Convertit en Uint8Array puis blob octet-stream — le navigateur ne peut pas l'afficher inline
+  const pdfBytes  = doc.output('arraybuffer');
+  const blob      = new Blob([pdfBytes], { type: 'application/octet-stream' });
+  const url       = URL.createObjectURL(blob);
+  const a         = document.createElement('a');
+  a.href          = url;
+  a.download      = saveName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  // Petit délai pour laisser le DOM se stabiliser avant le clic
+  await new Promise(r => setTimeout(r, 100));
+  a.click();
+  await new Promise(r => setTimeout(r, 500));
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function _toastSaved(configuredPath) {
