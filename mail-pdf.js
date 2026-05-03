@@ -66,7 +66,7 @@ function _toastSaved(configuredPath) {
   toast('💾 PDF enregistré dans ' + label);
 }
 
-const _PDF_COLOR_MAP_RGB = { rouge:[192,0,0], violet:[167,139,250], vert:[0,200,150], bleu:[142,169,219], jaune:[248,254,171] };
+const _PDF_COLOR_MAP_RGB = { rouge:[210, 80, 90], violet:[167,139,250], vert:[0,200,150], bleu:[142,169,219], jaune:[248,254,171] };
 const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 function _pdfParseColor(str) {
@@ -105,7 +105,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     if (slots.length === 0) return;
 
     const _SEC_COLOR_MAP = {
-      cm:    [192, 0,   0  ],  // rouge
+      cm:    [210, 80,  90 ],  // rouge atténué
       fcq:   [167, 139, 250],  // violet
       pn:    [0,   200, 150],  // vert
       matin: sec.color === '#ffd060' ? [248, 254, 171] : [142, 169, 219],
