@@ -78,17 +78,22 @@ function _toastSaved(configuredPath) {
   toast('💾 PDF enregistré dans ' + label);
 }
 
+const _PDF_COLOR_MAP_RGB = { rouge:[192,0,0], violet:[167,139,250], vert:[0,200,150], bleu:[142,169,219], jaune:[248,254,171] };
+const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
 function _pdfParseColor(str) {
   if (!str) return [120, 130, 145];
+  // Nom de couleur connu (rouge, bleu, jaune, vert, violet)
+  const named = _PDF_COLOR_MAP_RGB[str.toLowerCase().trim()];
+  if (named) return named;
+  // Hex #rrggbb
   const h = str.replace('#', '');
   if (h.length === 6) return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  // rgb(r,g,b)
   const m = str.match(/\d+/g);
   if (m && m.length >= 3) return [+m[0], +m[1], +m[2]];
   return [120, 130, 145];
 }
-
-const _PDF_COLOR_MAP_RGB = { rouge:[192,0,0], violet:[167,139,250], vert:[0,200,150], bleu:[142,169,219], jaune:[248,254,171] };
-const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 // Dessine l'effectif d'un jour sur le doc jsPDF à partir de la position y donnée.
 function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
@@ -111,14 +116,22 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     const slots = daySlots[secId] || [];
     if (slots.length === 0) return;
 
-    const secRGB = _pdfParseColor(sec.color);
+    const _SEC_COLOR_MAP = {
+      cm:    [192, 0,   0  ],  // rouge
+      fcq:   [167, 139, 250],  // violet
+      pn:    [0,   200, 150],  // vert
+      matin: sec.color === '#ffd060' ? [248, 254, 171] : [142, 169, 219],
+      aprem: sec.color === '#3b8fff' ? [142, 169, 219] : [248, 254, 171],
+      autre: [120, 130, 145],
+    };
+    const secRGB = _SEC_COLOR_MAP[secId] || _pdfParseColor(sec.color);
 
     if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
     doc.setFillColor(...secRGB);
     doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(40, 40, 50);
     doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
     y += secTitleH;
 
