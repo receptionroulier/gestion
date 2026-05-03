@@ -71,6 +71,11 @@ async function _savePDFWithFallback(doc, fileName, configuredPath) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+function _toastSaved(configuredPath) {
+  const label = configuredPath ? `"${configuredPath}"` : 'Téléchargements';
+  toast('💾 PDF enregistré dans ' + label);
+}
+
 function _pdfParseColor(str) {
   if (!str) return [120, 130, 145];
   const h = str.replace('#', '');
@@ -480,7 +485,7 @@ async function sendDailyMail(dayIdx) {
   if (ok) {
     toast('✅ Mail journalier envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathDaily || '');
-    toast('💾 PDF enregistré dans Téléchargements');
+    _toastSaved(state.config.pdfPathDaily);
   }
 }
 
@@ -506,7 +511,7 @@ async function sendWeeklyMail() {
   if (ok) {
     toast('✅ Mail hebdomadaire envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathWeekly || '');
-    toast('💾 PDF enregistré dans Téléchargements');
+    _toastSaved(state.config.pdfPathWeekly);
   }
 }
 
@@ -541,7 +546,7 @@ async function sendCongesMail(workerId, selections) {
   if (ok) {
     toast('✅ Mail demande de congés envoyé !');
     await _savePDFWithFallback(result.doc, fileName, state.config.pdfPathConges || '');
-    toast('💾 PDF enregistré dans Téléchargements');
+    _toastSaved(state.config.pdfPathConges);
   }
 }
 
