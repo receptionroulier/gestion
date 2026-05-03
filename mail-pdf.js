@@ -488,7 +488,7 @@ async function sendDailyMail(dayIdx) {
   }
 
   const subject  = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
-  const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\nCordialement,\nGestion Parc Réception Roulier`;
+  const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) toast('✅ Mail journalier envoyé !');
 }
@@ -509,8 +509,8 @@ async function sendWeeklyMail() {
   }
 
   const wn       = getWeekNum(state.weekStart);
-  const subject  = `Planning Hebdomadaire Parc Réception Roulier — Semaine ${wn}`;
-  const bodyText = `Bonjour,\n\nCi-joint le planning hebdomadaire Parc Réception Roulier pour la Semaine ${wn}.\n\nCordialement,\nGestion Parc Réception Roulier`;
+  const subject  = `Prévision d'effectif Parc Réception Roulier — Semaine ${wn}`;
+  const bodyText = `Bonjour,\n\nCi-joint prévision d'effectif Parc Réception Roulier pour la Semaine ${wn}.\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) toast('✅ Mail hebdomadaire envoyé !');
 }
@@ -541,7 +541,7 @@ async function sendCongesMail(workerId, selections) {
   });
 
   const subject  = `Demande de congés — ${workerName}`;
-  const bodyText = `Bonjour,\n\nVeuillez trouver ci-joint la demande de congés pour ${workerName} :\n\n${lignes.join('\n')}\n\nCordialement,\nGestion Parc Réception Roulier`;
+  const bodyText = `Bonjour,\n\nCi-joint la demande de congés pour ${workerName} :\n\n${lignes.join('\n')}\n\n\nGestion Parc Réception Roulier`;
   const ok = await _sendViaProxy({ subject, bodyText, fileName, pdfBase64 });
   if (ok) toast('✅ Mail demande de congés envoyé !');
 }
