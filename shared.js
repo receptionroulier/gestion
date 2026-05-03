@@ -737,12 +737,24 @@ function openCfgModule(module) {
 
   if (module === 'mail') {
     body.innerHTML = `
-      <div class="modal-label">Email destinataires</div>
+      <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#128231; Destinataires</div>
+      <div class="modal-label">Email destinataire(s)</div>
       <input class="modal-input" id="cfg-email-week" value="${state.config.emailWeek || ''}" style="width:100%;margin-bottom:12px;">
       <div class="modal-label">Copie (CC)</div>
       <input class="modal-input" id="cfg-cc-week" value="${state.config.emailCcWeek || ''}" style="width:100%;margin-bottom:12px;">
       <div class="modal-label">Copie cachée (CCI)</div>
       <input class="modal-input" id="cfg-bcc-week" value="${state.config.emailBccWeek || ''}" style="width:100%;margin-bottom:20px;">
+
+      <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#9993; Expéditeur Gmail</div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:12px;line-height:1.5;">
+        Le mot de passe est envoyé une seule fois au serveur et stocké de façon sécurisée — il n’apparaît jamais dans le code.
+        <br><br>&#128712; Compte Google → Sécurité → Validation en 2 étapes → <b>Mots de passe des applis</b> → Générer.
+      </div>
+      <div class="modal-label">Adresse Gmail expéditeur</div>
+      <input class="modal-input" id="cfg-email-from" value="${state.config.emailFrom || ''}" placeholder="Ex: planning.parc@gmail.com" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
+      <div class="modal-label">Mot de passe d’application (16 caractères)</div>
+      <input class="modal-input" id="cfg-gmail-apppass" type="password" placeholder="${state.config.gmailPassSaved ? '•••••••••••••••• (enregistré)' : 'xxxx xxxx xxxx xxxx'}" style="width:100%;margin-bottom:20px;font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;">
+
       <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#128193; Chemins PDF par défaut</div>
       <div style="font-size:0.65rem;color:var(--text3);margin-bottom:12px;line-height:1.5;">Si le chemin est accessible, le PDF y sera enregistré automatiquement. Sinon, téléchargement classique.</div>
       <div class="modal-label">PDF Journalier</div>
@@ -751,8 +763,8 @@ function openCfgModule(module) {
       <input class="modal-input" id="cfg-path-weekly" value="${state.config.pdfPathWeekly || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Hebdo" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
       <div class="modal-label">PDF Congés</div>
       <input class="modal-input" id="cfg-path-conges" value="${state.config.pdfPathConges || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Congés" style="width:100%;font-family:'DM Mono',monospace;font-size:0.7rem;">
-    `;
-    footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveConfig()">Enregistrer</button>`;
+    \`;
+    footer.innerHTML = \`<button class="modal-btn modal-btn-ok" onclick="saveConfig()">Enregistrer</button>\`;
   }
   else if (module === 'personnel') {
     const staffRows = state.staff.map(w => {
@@ -908,20 +920,49 @@ window.saveVacancesConfig = async function() {
   toast('Vacances scolaires mises à jour ✓');
 };
 
-window.saveConfig = function() {
-  const emailWeek = document.getElementById('cfg-email-week');
-  const emailCcWeek = document.getElementById('cfg-cc-week');
+window.saveConfig = async function() {
+  const emailWeek    = document.getElementById('cfg-email-week');
+  const emailCcWeek  = document.getElementById('cfg-cc-week');
   const emailBccWeek = document.getElementById('cfg-bcc-week');
-  const pathDaily = document.getElementById('cfg-path-daily');
-  const pathWeekly = document.getElementById('cfg-path-weekly');
-  const pathConges = document.getElementById('cfg-path-conges');
-  if (emailWeek) state.config.emailWeek = emailWeek.value.trim();
-  if (emailCcWeek) state.config.emailCcWeek = emailCcWeek.value.trim();
+  const emailFrom    = document.getElementById('cfg-email-from');
+  const gmailPassEl  = document.getElementById('cfg-gmail-apppass');
+  const pathDaily    = document.getElementById('cfg-path-daily');
+  const pathWeekly   = document.getElementById('cfg-path-weekly');
+  const pathConges   = document.getElementById('cfg-path-conges');
+
+  if (emailWeek)    state.config.emailWeek    = emailWeek.value.trim();
+  if (emailCcWeek)  state.config.emailCcWeek  = emailCcWeek.value.trim();
   if (emailBccWeek) state.config.emailBccWeek = emailBccWeek.value.trim();
-  if (pathDaily) state.config.pdfPathDaily = pathDaily.value.trim();
-  if (pathWeekly) state.config.pdfPathWeekly = pathWeekly.value.trim();
-  if (pathConges) state.config.pdfPathConges = pathConges.value.trim();
-  saveState(); closeCfgSubpanel(); toast('Configuration sauvegardée');
+  if (emailFrom)    state.config.emailFrom    = emailFrom.value.trim();
+  if (pathDaily)    state.config.pdfPathDaily  = pathDaily.value.trim();
+  if (pathWeekly)   state.config.pdfPathWeekly = pathWeekly.value.trim();
+  if (pathConges)   state.config.pdfPathConges = pathConges.value.trim();
+
+  // Si un mot de passe Gmail est saisi, l’envoyer au worker pour stockage sécurisé en KV
+  const rawPass = gmailPassEl?.value?.replace(/\s/g, '') || '';
+  if (rawPass && state.config.emailFrom) {
+    try {
+      const r = await fetch(PLAN_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'saveGmailPass', from: state.config.emailFrom, pass: rawPass })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        state.config.gmailPassSaved = true;
+        toast('Configuration et mot de passe Gmail sauvegardés ✓');
+      } else {
+        toast('Erreur sauvegarde mot de passe : ' + (d.error || 'inconnue'), 'error');
+      }
+    } catch(e) {
+      toast('Erreur réseau', 'error');
+    }
+  } else {
+    toast('Configuration sauvegardée ✓');
+  }
+
+  saveState();
+  closeCfgSubpanel();
 };
 
 // ── PDF GENERATION ──
@@ -1305,8 +1346,20 @@ async function sendDailyMail(dayIdx) {
         const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
         const bodyText = `Bonjour,\n\nCi-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.\n\nCordialement,\nGestion Parc Réception Roulier`;
 
+        const fromAddress = state.config.emailFrom || '';
+        if (!fromAddress) {
+            toast('Adresse Gmail expéditeur non configurée (config → Emails)', 'error');
+            return;
+        }
+        if (!state.config.gmailPassSaved) {
+            toast('Mot de passe Gmail non configuré — allez dans config → Emails', 'error');
+            return;
+        }
+
         const payload = {
             type: 'sendMail',
+            from: fromAddress,
+            gmailAppPass: '',
             to: state.config.emailWeek,
             cc: state.config.emailCcWeek || '',
             bcc: state.config.emailBccWeek || '',
