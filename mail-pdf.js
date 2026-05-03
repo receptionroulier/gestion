@@ -123,7 +123,10 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     if (sec.hours) {
       if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
       doc.setFillColor(235, 239, 246);
-      doc.roundedRect(margin, y, cardW, hoursH, 0, 2, 'F');
+      doc.roundedRect(margin, y, cardW, hoursH, 2, 2, 'F');
+      doc.setDrawColor(...GREY_CARD);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(margin, y, cardW, hoursH, 2, 2, 'S');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(70, 85, 110);
@@ -132,7 +135,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       y += hoursH;
     }
 
-    y += 3;
+    y += 1;
 
     const membersInSec = slots.map(slot => {
       const key = gkey(dayIdx + '_' + secId + '_' + slot.id);
@@ -168,8 +171,6 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
 
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
-      doc.setFillColor(...memberRGB);
-      doc.rect(mLeft, cy + 1, 2, memberH - 2, 'F');
       doc.setDrawColor(...GREY_CARD);
       doc.setLineWidth(0.25);
       doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
@@ -178,7 +179,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(...memberRGB);
+      doc.setTextColor(150, 155, 165);
       doc.text(postLabel, textLeft, midY);
 
       const posteW = doc.getTextWidth(postLabel);
@@ -240,23 +241,16 @@ async function generateDayPDF(dayIdx) {
   const BLUE = _pdfHeader(doc, W, margin);
 
   const fs = 11;
-  const titreBase  = 'Effectif Équipe Parc Réception Roulier';
-  const titreSuite = '  du  ' + dateLabelPDF;
+  const titre = 'Effectif Équipe Parc Réception Roulier du ' + dateLabelPDF;
   doc.setFontSize(fs);
   doc.setFont('helvetica', 'bold');
-  const baseW  = doc.getTextWidth(titreBase);
-  doc.setFont('helvetica', 'normal');
-  const suiteW = doc.getTextWidth(titreSuite);
-  const scale  = (baseW + suiteW) > (W - 2*margin) ? (W - 2*margin) / (baseW + suiteW) : 1;
-  const fsFinal = fs * scale;
+  const titreW = doc.getTextWidth(titre);
+  const scale  = titreW > (W - 2*margin) ? (W - 2*margin) / titreW : 1;
 
-  doc.setFontSize(fsFinal);
+  doc.setFontSize(fs * scale);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 35, 50);
-  doc.text(titreBase, margin, 29);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 90, 110);
-  doc.text(titreSuite, margin + baseW * scale, 29);
+  doc.text(titre, margin, 29);
 
   _pdfRenderDay(doc, dayIdx, W, margin, 36);
   _pdfFooter(doc, margin);
