@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const PLAN_PROXY = "https://planning-proxy.receptionroulier.workers.dev";
-const GMAIL_CLIENT_ID = ''; // à remplir avec votre Client ID Google OAuth2
+const GMAIL_CLIENT_ID = ""; // Remplir avec votre Client ID OAuth2 Google
 const NAV_PROXY = "https://shgt-proxy.receptionroulier.workers.dev";
 const HOLIDAYS_BASE = "https://calendrier.api.gouv.fr/jours-feries/metropole";
 const SCHOOL_HOLIDAYS_API = 'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
@@ -738,7 +738,6 @@ function openCfgModule(module) {
 
   if (module === 'mail') {
     body.innerHTML = `
-      <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#128231; Destinataires</div>
       <div class="modal-label">Email destinataire(s)</div>
       <input class="modal-input" id="cfg-email-week" value="${state.config.emailWeek || ''}" style="width:100%;margin-bottom:12px;">
       <div class="modal-label">Copie (CC)</div>
@@ -747,10 +746,7 @@ function openCfgModule(module) {
       <input class="modal-input" id="cfg-bcc-week" value="${state.config.emailBccWeek || ''}" style="width:100%;margin-bottom:20px;">
 
       <div style="font-size:0.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">&#9993; Expéditeur Gmail</div>
-      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:12px;line-height:1.5;">
-        Le mot de passe est envoyé une seule fois au serveur et stocké de façon sécurisée — il n’apparaît jamais dans le code.
-        <br><br>&#128712; Compte Google → Sécurité → Validation en 2 étapes → <b>Mots de passe des applis</b> → Générer.
-      </div>
+      <div style="font-size:0.65rem;color:var(--text3);margin-bottom:10px;line-height:1.5;">Compte Gmail depuis lequel le mail journalier sera envoyé automatiquement.</div>
       <div class="modal-label">Adresse Gmail expéditeur</div>
       <input class="modal-input" id="cfg-email-from" value="${state.config.emailFrom || ''}" placeholder="Ex: planning.parc@gmail.com" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
@@ -766,8 +762,8 @@ function openCfgModule(module) {
       <input class="modal-input" id="cfg-path-weekly" value="${state.config.pdfPathWeekly || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Hebdo" style="width:100%;margin-bottom:12px;font-family:'DM Mono',monospace;font-size:0.7rem;">
       <div class="modal-label">PDF Congés</div>
       <input class="modal-input" id="cfg-path-conges" value="${state.config.pdfPathConges || ''}" placeholder="Ex: C:\\Users\\…\\Planning\\Congés" style="width:100%;font-family:'DM Mono',monospace;font-size:0.7rem;">
-    \`;
-    footer.innerHTML = \`<button class="modal-btn modal-btn-ok" onclick="saveConfig()">Enregistrer</button>\`;
+    `;
+    footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveConfig()">Enregistrer</button>`;
   }
   else if (module === 'personnel') {
     const staffRows = state.staff.map(w => {
@@ -923,16 +919,14 @@ window.saveVacancesConfig = async function() {
   toast('Vacances scolaires mises à jour ✓');
 };
 
-window.saveConfig = async function() {
+window.saveConfig = function() {
   const emailWeek    = document.getElementById('cfg-email-week');
   const emailCcWeek  = document.getElementById('cfg-cc-week');
   const emailBccWeek = document.getElementById('cfg-bcc-week');
   const emailFrom    = document.getElementById('cfg-email-from');
-  const gmailPassEl  = document.getElementById('cfg-gmail-apppass');
   const pathDaily    = document.getElementById('cfg-path-daily');
   const pathWeekly   = document.getElementById('cfg-path-weekly');
   const pathConges   = document.getElementById('cfg-path-conges');
-
   if (emailWeek)    state.config.emailWeek    = emailWeek.value.trim();
   if (emailCcWeek)  state.config.emailCcWeek  = emailCcWeek.value.trim();
   if (emailBccWeek) state.config.emailBccWeek = emailBccWeek.value.trim();
@@ -940,5 +934,604 @@ window.saveConfig = async function() {
   if (pathDaily)    state.config.pdfPathDaily  = pathDaily.value.trim();
   if (pathWeekly)   state.config.pdfPathWeekly = pathWeekly.value.trim();
   if (pathConges)   state.config.pdfPathConges = pathConges.value.trim();
-
   saveState(); closeCfgSubpanel(); toast('Configuration sauvegardée ✓');
+};
+
+// ── Gmail OAuth2 ──
+window.gmailAuthorize = function() {
+  const fromAddress = (state.config.emailFrom || '').trim();
+  if (!fromAddress) { toast('Configurez d’abord l’adresse Gmail expéditeur', 'error'); return; }
+  const redirectUri = window.location.origin + '/oauth-callback.html';
+  const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
+    + '?client_id=' + encodeURIComponent(GMAIL_CLIENT_ID)
+    + '&redirect_uri=' + encodeURIComponent(redirectUri)
+    + '&response_type=code'
+    + '&scope=' + encodeURIComponent('https://www.googleapis.com/auth/gmail.send')
+    + '&access_type=offline&prompt=consent'
+    + '&login_hint=' + encodeURIComponent(fromAddress);
+  sessionStorage.setItem('gmailAuthFrom', fromAddress);
+  window.open(authUrl, 'gmailAuth', 'width=520,height=660,left=400,top=80');
+  window.addEventListener('message', async function handler(event) {
+    if (event.data?.type !== 'gmailOAuthCode') return;
+    window.removeEventListener('message', handler);
+    try {
+      const r = await fetch(PLAN_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'saveGmailToken', code: event.data.code, fromAddress, redirectUri })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        state.config.gmailAuthorized = true;
+        saveState();
+        toast('✅ Gmail autorisé avec succès !');
+        openCfgModule('mail');
+      } else {
+        toast('Erreur : ' + (d.error || 'inconnue'), 'error');
+      }
+    } catch(e) { toast('Erreur réseau', 'error'); }
+  });
+};
+
+// ── PDF GENERATION ──
+// Tente de sauvegarder le blob dans un chemin configuré via showSaveFilePicker (File System Access API).
+// Si le chemin n'est pas accessible (API non dispo ou refus), fallback sur doc.save() classique.
+async function _savePDFWithFallback(doc, fileName, configuredPath) {
+    const blob = doc.output('blob');
+    if (configuredPath && typeof window.showSaveFilePicker === 'function') {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                startIn: 'downloads', // hint seulement, non bloquant
+                types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            toast('PDF enregistré ✓');
+            return;
+        } catch(e) {
+            // Utilisateur a annulé ou chemin inaccessible → fallback
+            if (e.name !== 'AbortError') console.warn('[PDF] showSaveFilePicker échec, fallback:', e);
+        }
+    }
+    // Fallback classique
+    doc.save(fileName);
+}
+
+// ── PDF GRAPHIQUE — HELPERS COMMUNS ──
+function _pdfParseColor(str) {
+  if (!str) return [120, 130, 145];
+  const h = str.replace('#', '');
+  if (h.length === 6) return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  const m = str.match(/\d+/g);
+  if (m && m.length >= 3) return [+m[0], +m[1], +m[2]];
+  return [120, 130, 145];
+}
+
+const _PDF_COLOR_MAP_RGB = { rouge:[255,77,109], violet:[167,139,250], vert:[0,200,150], bleu:[59,143,255], jaune:[255,208,96] };
+const _MONTHS_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+// Dessine l'effectif d'un jour sur le doc jsPDF à partir de la position y donnée.
+// Retourne le nouveau y après le rendu.
+function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
+  const GREY_CARD = [215, 220, 228];
+  const H = 297;
+  const sectionsMap = getSectionsMap();
+  const daySlots = state.slots[dayIdx] || {};
+
+  const cardW  = W - 2 * margin;
+  const memberH   = 9;   // une seule ligne : poste + nom + matricule
+  const secTitleH = 8;
+  const hoursH    = 6;
+  const innerPad  = 2.5;
+  const memberPad = 1.5;
+
+  let y = startY;
+
+  SECTIONS_ORDER.forEach(secId => {
+    const sec   = sectionsMap[secId];
+    const slots = daySlots[secId] || [];
+    if (slots.length === 0) return;
+
+    const secRGB = _pdfParseColor(sec.color);
+
+    // ── Titre chantier arrondi ──
+    if (y + secTitleH > H - 15) { doc.addPage(); y = 20; }
+    doc.setFillColor(...secRGB);
+    doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
+    y += secTitleH;
+
+    // ── Horaire arrondi, centré, collé au titre (pas d'espace) ──
+    if (sec.hours) {
+      if (y + hoursH > H - 15) { doc.addPage(); y = 20; }
+      doc.setFillColor(235, 239, 246);
+      doc.roundedRect(margin, y, cardW, hoursH, 0, 2, 'F'); // arrondi bas seulement
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(70, 85, 110);
+      // centré horizontalement
+      const hW = doc.getTextWidth(sec.hours);
+      doc.text(sec.hours, margin + (cardW - hW) / 2, y + 4);
+      y += hoursH;
+    }
+
+    y += 3; // espace entre bloc horaire/titre et les cartes membres
+
+    const membersInSec = slots.map(slot => {
+      const key = gkey(dayIdx + '_' + secId + '_' + slot.id);
+      const workerId = state.planningModified[key] !== undefined
+        ? state.planningModified[key] : state.planning[key];
+      const w = getWorker(workerId);
+      return { slot, workerId, w };
+    });
+
+    // Conteneur gris englobant
+    const totalCMH = innerPad + membersInSec.length * (memberH + memberPad) - memberPad + innerPad;
+    if (y + totalCMH > H - 15) { doc.addPage(); y = 20; }
+
+    doc.setFillColor(246, 248, 251);
+    doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'F');
+    doc.setDrawColor(...GREY_CARD);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(margin, y, cardW, totalCMH, 2, 2, 'S');
+
+    let cy = y + innerPad;
+
+    // ── Cartes membres ──
+    membersInSec.forEach(({ slot, workerId, w }) => {
+      if (cy + memberH > H - 15) { doc.addPage(); cy = 20; }
+
+      const workerColorKey = state.config?.workerColors?.[workerId];
+      const memberRGB  = workerColorKey ? _PDF_COLOR_MAP_RGB[workerColorKey] : [190, 195, 205];
+      const displayName   = w ? (w.lastName + ' ' + w.firstName) : (workerId ? 'Hors groupe' : '—');
+      const displayMatric = w ? (w.matricule || '—') : '—';
+      const postLabel     = slot.label || '';
+
+      const mLeft = margin + innerPad;
+      const mW    = cardW - 2 * innerPad;
+      const midY  = cy + memberH / 2 + 1.5; // ligne de base centrée
+
+      // Fond blanc arrondi
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
+
+      // Liseré gauche couleur membre (fin, pas de fond coloré)
+      doc.setFillColor(...memberRGB);
+      doc.rect(mLeft, cy + 1, 2, memberH - 2, 'F');
+
+      // Contour discret
+      doc.setDrawColor(...GREY_CARD);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
+
+      const textLeft = mLeft + 5;
+
+      // Poste — à gauche, gras, couleur membre
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...memberRGB);
+      doc.text(postLabel, textLeft, midY);
+
+      // NOM Prénom — au centre (après le poste + un gap fixe)
+      const posteW = doc.getTextWidth(postLabel);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(25, 30, 45);
+      doc.text(displayName, textLeft + posteW + 4, midY);
+
+      // Matricule — à droite, plus grand
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 110, 130);
+      const matW = doc.getTextWidth(displayMatric);
+      doc.text(displayMatric, mLeft + mW - matW - 3, midY);
+
+      cy += memberH + memberPad;
+    });
+
+    y = cy - memberPad + 5; // espace entre chantiers
+  });
+
+  return y;
+}
+
+// ── PDF JOURNALIER ──
+async function generateDayPDF(dayIdx) {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  const BLUE = [47, 117, 181];
+  const d = addDays(state.weekStart, dayIdx);
+
+  // "lundi 27 avril 2026" — minuscules pour objet/corps mail
+  const dateLabelLong = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  // "Lundi 27 Avril 2026" — capitalisé pour le PDF
+  const dateLabelPDF  = dateLabelLong.replace(/\b\w/g, c => c.toUpperCase());
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, margin = 14;
+
+  // ── Header TRANSMANUTENTION ──
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setFontSize(20);
+  doc.setTextColor(...BLUE);
+  doc.text('TRANSMANUTENTION', margin, 15);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 20, W - margin, 20);
+
+  // ── Titre complet sur une ligne : bold + normal, même taille ──
+  // Pour éviter tout chevauchement on mesure la partie bold avant d'écrire la suite
+  const fs = 11;
+  const titreBase  = 'Effectif Équipe Parc Réception Roulier';
+  const titreSuite = '  du  ' + dateLabelPDF;
+
+  doc.setFontSize(fs);
+  doc.setFont('helvetica', 'bold');
+  const baseW = doc.getTextWidth(titreBase);
+  // Vérifie si tout tient sur la largeur utile, sinon réduit légèrement
+  doc.setFont('helvetica', 'normal');
+  const suiteW = doc.getTextWidth(titreSuite);
+  const totalW = baseW + suiteW;
+  const usable = W - 2 * margin;
+  const scale  = totalW > usable ? usable / totalW : 1;
+  const fsFinal = fs * scale;
+
+  doc.setFontSize(fsFinal);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 35, 50);
+  doc.text(titreBase, margin, 29);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 90, 110);
+  doc.text(titreSuite, margin + baseW * scale, 29);
+
+  _pdfRenderDay(doc, dayIdx, W, margin, 36);
+
+  // ── Pied de page ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(170, 170, 180);
+  doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
+
+  // ── Nom de fichier ──
+  const dayCapit  = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\b\w/, c => c.toUpperCase());
+  const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
+  const fileName  = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
+
+  await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
+  return { dateLabelLong, fileName };
+}
+
+// ── PDF HEBDOMADAIRE ──
+async function generateWeeklyPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+  const BLUE = [47, 117, 181];
+  const wn = getWeekNum(state.weekStart);
+  const today = new Date().toLocaleDateString('fr-FR');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, H = 297, margin = 14;
+
+  let firstPage = true;
+
+  for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+    // Vérifier si ce jour a des slots
+    const daySlots = state.slots[dayIdx] || {};
+    const hasSlots = SECTIONS_ORDER.some(secId => (daySlots[secId] || []).length > 0);
+    if (!hasSlots) continue;
+
+    if (!firstPage) doc.addPage();
+    firstPage = false;
+
+    const d = addDays(state.weekStart, dayIdx);
+    const dayName = DAYS[dayIdx];
+    const dateLabel = dayName + ' ' + d.getDate() + ' ' + _MONTHS_LONG[d.getMonth()] + ' ' + d.getFullYear();
+
+    // Header de page
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(20);
+    doc.setTextColor(...BLUE);
+    doc.text('TRANSMANUTENTION', margin, 15);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 20, W - margin, 20);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 35, 50);
+    doc.text('Effectif Équipe Parc Réception Roulier', margin, 27);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 90, 110);
+    doc.text(dateLabel + '  —  Semaine ' + wn, margin, 33);
+
+    _pdfRenderDay(doc, dayIdx, W, margin, 40);
+
+    // Pied de page
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(170, 170, 180);
+    doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, 289);
+  }
+
+  if (firstPage) {
+    // Aucun jour avec données
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(120, 130, 145);
+    doc.text('Aucune affectation pour la semaine ' + wn, margin, 50);
+  }
+
+  await _savePDFWithFallback(doc, `Planning_Réception_Semaine${wn}.pdf`, state.config.pdfPathWeekly || '');
+}
+
+async function sendDailyMail(dayIdx) {
+    // Vérifications préalables
+    if (!state.config.emailFrom) {
+        toast('Adresse Gmail expéditeur non configurée (Config → Emails)', 'error'); return;
+    }
+    if (!state.config.gmailAuthorized) {
+        toast('Gmail non autorisé — allez dans Config → Emails → Autoriser Gmail', 'error'); return;
+    }
+    if (!state.config.emailWeek) {
+        toast('Adresse destinataire non configurée (Config → Emails)', 'error'); return;
+    }
+
+    toast('⏳ Génération du PDF…', 'info');
+
+    // 1. Générer le PDF
+    let fileName, pdfBase64, dateLabelLong;
+    try {
+        const { jsPDF } = window.jspdf;
+        const d = addDays(state.weekStart, dayIdx);
+        dateLabelLong = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+        const dateLabelPDF = dateLabelLong.replace(/\w/g, c => c.toUpperCase());
+        const BLUE = [47, 117, 181];
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const W = 210, margin = 14;
+
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(20);
+        doc.setTextColor(...BLUE);
+        doc.text('TRANSMANUTENTION', margin, 15);
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 20, W - margin, 20);
+
+        const fs = 11;
+        const titreComplet = 'Effectif Équipe Parc Réception Roulier  du  ' + dateLabelPDF;
+        doc.setFontSize(fs);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 35, 50);
+        doc.text(titreComplet, margin, 29);
+
+        _pdfRenderDay(doc, dayIdx, W, margin, 36);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.setTextColor(170, 170, 180);
+        doc.text('Document généré le ' + new Date().toLocaleDateString('fr-FR') + ' par Gestion Parc Réception Roulier', margin, 289);
+
+        const dayCapit = d.toLocaleDateString('fr-FR', {weekday:'long'}).replace(/\w/, c => c.toUpperCase());
+        const monthName = d.toLocaleDateString('fr-FR', {month:'long'});
+        fileName = `Effectif_Parc_Roulier_du_${dayCapit}-${d.getDate()}-${monthName}-${d.getFullYear()}.pdf`;
+
+        await _savePDFWithFallback(doc, fileName, state.config.pdfPathDaily || '');
+        pdfBase64 = doc.output('datauristring').split(',')[1];
+    } catch(e) {
+        console.error('[sendDailyMail] PDF error:', e);
+        toast('Erreur génération PDF', 'error'); return;
+    }
+
+    // 2. Envoyer via le worker
+    toast('⏳ Envoi du mail…', 'info');
+    try {
+        const subject = `Effectif Parc Réception Roulier pour le ${dateLabelLong}`;
+        const bodyText = `Bonjour,
+
+Ci-joint l'effectif Parc Réception Roulier pour le ${dateLabelLong}.
+
+Cordialement,
+Gestion Parc Réception Roulier`;
+        const r = await fetch(PLAN_PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'sendMail',
+                from: state.config.emailFrom,
+                to: state.config.emailWeek,
+                cc: state.config.emailCcWeek || '',
+                bcc: state.config.emailBccWeek || '',
+                subject,
+                body: bodyText,
+                attachment: { filename: fileName, content: pdfBase64 }
+            })
+        });
+        const data = await r.json();
+        if (data.ok) {
+            toast('✅ Mail journalier envoyé !');
+        } else {
+            toast('Erreur envoi : ' + (data.error || 'inconnue'), 'error');
+        }
+    } catch(e) {
+        toast("Erreur réseau lors de l'envoi", 'error');
+    }
+}
+
+async function sendWeeklyMail() {
+    const wn = getWeekNum(state.weekStart);
+    const subject = 'Planning Hebdo Semaine ' + wn;
+
+    toast('⏳ Génération du PDF en cours…', 'info');
+    try {
+        await generateWeeklyPDF();
+    } catch(e) {
+        toast('Erreur génération PDF', 'error');
+        return;
+    }
+
+    const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour la Semaine ${wn}.`;
+    const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
+    const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Ouverture via un lien <a> pour maximiser la compatibilité avec Outlook sur Windows
+    const a = document.createElement('a');
+    a.href = mailtoUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+
+    toast(`📧 "${subject}" — ouverture du client mail…`);
+}
+
+// ── TYPES DE CONGÉS ──
+const CONGE_TYPES_BASE = [
+  { code: 'CP',   label: 'CP — Congé Payé' },
+  { code: 'CPAT', label: 'CPAT — Congé Payé Anticipé' },
+  { code: 'RR',   label: 'RR — Repos Récupération' },
+  { code: 'RTT',  label: 'RTT — Réduction Temps Travail' },
+  { code: 'CSS',  label: 'CSS — Congé Sans Solde' },
+  { code: 'AT',   label: 'AT — Accident Travail' },
+  { code: 'MAL',  label: 'MAL — Maladie' },
+  { code: 'MP',   label: 'MP — Maladie Professionnelle' },
+  { code: 'FE',   label: 'FE — Jour Férié' },
+  { code: 'R',    label: 'R — Repos' },
+  { code: 'RP',   label: 'RP — Repos Programmé' },
+  { code: 'EXC',  label: 'EXC — Congé Exceptionnel' },
+  { code: 'PAT',  label: 'PAT — Paternité' },
+  { code: 'MAT',  label: 'MAT — Maternité' },
+  { code: 'AUT',  label: 'AUT — Autres Absences' },
+  { code: 'FORM', label: 'FORM — Formation' },
+  { code: 'EVE',  label: 'EVE — Évènement Familial' },
+];
+
+let _dynamicCodes = new Set(CONGE_TYPES_BASE.map(t => t.code));
+
+function getCongeTypes() {
+  const customLabels = state.config.congeLabels || {};
+  const types = CONGE_TYPES_BASE.map(t => ({
+    ...t,
+    label: customLabels[t.code] ? t.code + ' — ' + customLabels[t.code] : t.label
+  }));
+  Object.values(state.absences || {}).forEach(days => {
+    Object.values(days).forEach(code => {
+      if (code && !_dynamicCodes.has(code)) {
+        _dynamicCodes.add(code);
+        const customLabel = customLabels[code];
+        types.push({ code, label: customLabel ? code + ' — ' + customLabel : code + ' — (API)', isApi: true });
+      }
+    });
+  });
+  return types;
+}
+
+function renderCongeTypesPanel(body, footer) {
+  const customLabels = state.config.congeLabels || {};
+  const allTypes = getCongeTypes();
+  const rows = allTypes.map(t => {
+    const customLabel = customLabels[t.code] || '';
+    const defaultLabel = CONGE_TYPES_BASE.find(b => b.code === t.code)?.label?.replace(/^.+? — /, '') || '';
+    const apiBadge = t.isApi ? '<span class="cfg-ctype-api-badge">API</span>' : '';
+    const inputVal = customLabel || defaultLabel;
+    const inputStyle = customLabel ? '' : 'color:var(--text3);font-style:italic;';
+    return `<div class="cfg-ctype-row">
+      <span class="cfg-ctype-code">${t.code}</span>
+      ${apiBadge}
+      <input class="cfg-ctype-input" data-code="${t.code}" data-default="${defaultLabel}" placeholder="${defaultLabel || t.code}" value="${inputVal}" style="${inputStyle}" oninput="this.style.color='';this.style.fontStyle='';">
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div style="font-size:0.65rem;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Personnalisez les libellés affichés dans la liste déroulante.<br>
+      Les codes marqués <span style="color:var(--warn);font-weight:700;">API</span> ont été découverts automatiquement.
+    </div>
+    <div style="display:flex;flex-direction:column;">${rows}</div>
+  `;
+  footer.innerHTML = `<button class="modal-btn modal-btn-ok" onclick="saveCongeTypesConfig()">Enregistrer</button>`;
+}
+
+window.saveCongeTypesConfig = function() {
+  if (!state.config.congeLabels) state.config.congeLabels = {};
+  document.querySelectorAll('.cfg-ctype-input[data-code]').forEach(input => {
+    const code = input.dataset.code;
+    const val = input.value.trim();
+    const def = input.dataset.default || '';
+    if (val && val !== def) {
+      state.config.congeLabels[code] = val;
+    } else {
+      delete state.config.congeLabels[code];
+    }
+  });
+  saveState();
+  closeCfgSubpanel();
+  toast('Libellés des congés sauvegardés ✓');
+};
+
+// Injection CSS pour le panneau types congés (partagé entre les deux pages)
+(function injectCongeTypesCSS() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .cfg-ctype-row { display:flex; align-items:center; gap:6px; padding:4px 0; border-bottom:1px solid var(--border); }
+    .cfg-ctype-code { font-size:0.68rem; font-weight:700; color:var(--accent); font-family:'DM Mono',monospace; min-width:48px; }
+    .cfg-ctype-api-badge { font-size:0.55rem; font-weight:700; background:rgba(255,107,53,0.25); color:var(--warn); border-radius:3px; padding:1px 4px; flex-shrink:0; }
+    .cfg-ctype-input { flex:1; background:var(--surface); border:1px solid var(--border2); border-radius:5px; color:var(--text); padding:3px 7px; font-size:0.68rem; font-family:inherit; outline:none; }
+    .cfg-ctype-input:focus { border-color:var(--accent); }
+  `;
+  document.head.appendChild(style);
+})();
+
+// Export pour les fichiers HTML
+window.sharedState = state;
+window.loadState = loadState;
+window.saveState = saveState;
+window.fetchHolidays = fetchHolidays;
+window.fetchSchoolHolidays = fetchSchoolHolidays;
+window.resetSchoolHolidaysCache = resetSchoolHolidaysCache;
+window.loadAllData = loadAllData;
+window.loadAbsencesForMonth = loadAbsencesForMonth;
+window.getWorker = getWorker;
+window.getWorkerColorClass = getWorkerColorClass;
+window.fmtISO = fmtISO;
+window.fmtFR = fmtFR;
+window.addDays = addDays;
+window.getMonday = getMonday;
+window.getWeekNum = getWeekNum;
+window.toast = toast;
+window.showModal = showModal;
+window.closeModal = closeModal;
+window.showConfigModal = showConfigModal;
+window.closeCfgSidebar = closeCfgSidebar;
+window.openCfgModule = openCfgModule;
+window.closeCfgSubpanel = closeCfgSubpanel;
+window.closeCfgSidebar  = closeCfgSidebar;
+window.buildAbsConfigRows = buildAbsConfigRows;
+window.initAbsDragDrop = initAbsDragDrop;
+window.setWorkerColor = setWorkerColor;
+window.saveConfig = saveConfig;
+window.saveVacancesConfig = saveVacancesConfig;
+window.saveAbsConfig = saveAbsConfig;
+window.generateDayPDF = generateDayPDF;
+window.generateWeeklyPDF = generateWeeklyPDF;
+window.sendWeeklyMail = sendWeeklyMail;
+window.sendDailyMail = sendDailyMail;
+window.DAYS = DAYS;
+window.SECTIONS_ORDER = SECTIONS_ORDER;
+window.getSectionsMap = getSectionsMap;
+window.gkey = gkey;
+window.weekKey = weekKey;
+window.TBD_WORKER = TBD_WORKER;
+window.WORKER_COLORS = WORKER_COLORS;
+window.showSyncStatus = showSyncStatus;
+window.CONGE_TYPES_BASE = CONGE_TYPES_BASE;
+window.getCongeTypes = getCongeTypes;
+window.renderCongeTypesPanel = renderCongeTypesPanel;
