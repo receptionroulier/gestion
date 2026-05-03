@@ -1647,33 +1647,233 @@ async function validateConges(sendMail = false) {
 }
 window.validateConges = validateConges;
 
-// ── ENVOI MAIL CONGÉS ──
-function sendCongesMail(workerId, selections) {
+// ── ENVOI MAIL CONGÉS (Gmail API) ──
+async function sendCongesMail(workerId, selections) {
+  if (!state.config.emailFrom) {
+    toast('Adresse Gmail expéditeur non configurée (Config → Emails)', 'error'); return;
+  }
+  if (!state.config.gmailAuthorized) {
+    toast('Gmail non autorisé — allez dans Config → Emails → Autoriser Gmail', 'error'); return;
+  }
+  if (!state.config.emailWeek) {
+    toast('Adresse destinataire non configurée (Config → Emails)', 'error'); return;
+  }
+
   const worker = getWorker(workerId);
   if (!worker) return;
   const workerName = worker.lastName + ' ' + worker.firstName;
 
-  // Résumé des plages
-  const lignes = selections.map(sel => {
-    const mainCode = sel.code;
-    const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
-    const fromFR = isoToFR(sel.from);
-    const toFR = isoToFR(sel.to);
-    return sel.from === sel.to
-      ? '  - ' + mainCode + ' : ' + fromFR + ' (' + mainDays + ' j)'
-      : '  - ' + mainCode + ' : ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + ')';
-  });
+  toast('⏳ Génération de la fiche PDF…', 'info');
 
-  const subject = 'Demande de congés — ' + workerName;
-  const body = 'Bonjour,\n\nVeuillez trouver ci-dessous la demande de congés pour ' + workerName + ' :\n\n' + lignes.join('\n') + '\n\nCordialement.';
+  // 1. Générer le PDF de la fiche congés en base64 (sans doc.save)
+  let pdfBase64, fileName;
+  try {
+    const { jsPDF } = window.jspdf;
+    if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
 
-  const to  = state.config.emailWeek  || '';
-  const cc  = state.config.emailCcWeek || '';
-  const bcc = state.config.emailBccWeek || '';
-  const ccPart  = cc  ? '&cc='  + encodeURIComponent(cc)  : '';
-  const bccPart = bcc ? '&bcc=' + encodeURIComponent(bcc) : '';
+    const allDays = {};
+    const codeCounts = {};
+    selections.forEach(sel => {
+      Object.entries(sel.days).forEach(([iso, code]) => {
+        allDays[iso] = code;
+        codeCounts[code] = (codeCounts[code] || 0) + 1;
+      });
+    });
 
-  window.open('mailto:' + to + '?' + 'subject=' + encodeURIComponent(subject) + ccPart + bccPart + '&body=' + encodeURIComponent(body));
+    const sortedISO = Object.keys(allDays).sort();
+    const duISO = sortedISO[0];
+    const auISO = sortedISO[sortedISO.length - 1];
+    const duFR  = duISO ? isoToFR(duISO) : '—';
+    const auFR  = auISO ? isoToFR(auISO) : '—';
+    const today = new Date().toLocaleDateString('fr-FR');
+    const year  = new Date().getFullYear();
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, margin = 18;
+    const BLUE = [47, 117, 181];
+
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(22);
+    doc.setTextColor(...BLUE);
+    doc.text('TRANSMANUTENTION', margin, 16);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 22, W - margin, 22);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(50, 55, 70);
+    const titleStr = 'DEMANDE DE CONGÉS ' + year;
+    const titleW = doc.getTextWidth(titleStr);
+    doc.text(titleStr, W - margin - titleW, 28);
+
+    let y = 38;
+    const fieldH = 18, labelH = 5;
+    const col1x = margin;
+    const col3W = (W - 2 * margin - 8) / 3;
+    const col2x = col1x + col3W + 4;
+    const col3x = col2x + col3W + 4;
+    const col2old = W / 2 + 4;
+    const colW  = W / 2 - margin - 4;
+
+    function drawField(x, fy, w, label, value) {
+      doc.setFillColor(248, 248, 252);
+      doc.roundedRect(x, fy, w, fieldH, 2, 2, 'F');
+      doc.setDrawColor(200, 205, 215);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(x, fy, w, fieldH, 2, 2, 'S');
+      doc.setFillColor(...BLUE);
+      doc.rect(x, fy, 3, fieldH, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(140, 140, 155);
+      doc.text(label.toUpperCase(), x + 6, fy + labelH);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(30, 35, 50);
+      doc.text(String(value || '—'), x + 6, fy + labelH + 7);
+    }
+
+    drawField(col1x, y, col3W, 'Matricule', worker.matricule || '—');
+    drawField(col2x, y, col3W, 'Nom', worker.lastName);
+    drawField(col3x, y, col3W, 'Prénom', worker.firstName);
+    y += fieldH + 6;
+
+    drawField(col1x, y, colW, 'Du', duFR);
+    drawField(col2old, y, colW, 'Au', auFR);
+    y += fieldH + 6;
+
+    const codeEntries = Object.entries(codeCounts);
+    const nbFieldH = Math.max(fieldH + 4, 8 + codeEntries.length * 9);
+    doc.setFillColor(248, 248, 252);
+    doc.roundedRect(col1x, y, W - 2 * margin, nbFieldH, 2, 2, 'F');
+    doc.setDrawColor(200, 205, 215);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(col1x, y, W - 2 * margin, nbFieldH, 2, 2, 'S');
+    doc.setFillColor(...BLUE);
+    doc.rect(col1x, y, 3, nbFieldH, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 155);
+    doc.text('NOMBRE DE JOURS', col1x + 6, y + labelH);
+    let lineY = y + labelH + 6;
+    codeEntries.forEach(([code, n]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(...BLUE);
+      doc.text(n + ' ' + code, col1x + 6, lineY);
+      lineY += 9;
+    });
+    y += nbFieldH + 6;
+
+    const sigH = 32;
+    drawField(col1x, y, colW, 'Fait le', today);
+    doc.setFillColor(248, 248, 252);
+    doc.roundedRect(col2old, y, colW, sigH, 2, 2, 'F');
+    doc.setDrawColor(200, 205, 215);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(col2old, y, colW, sigH, 2, 2, 'S');
+    doc.setFillColor(...BLUE);
+    doc.rect(col2old, y, 3, sigH, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 155);
+    doc.text('SIGNATURE', col2old + 6, y + labelH);
+    y += sigH + 10;
+
+    if (selections.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...BLUE);
+      doc.text('DÉTAILS DES CONGÉS', col1x, y);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.6);
+      doc.line(col1x, y + 1.5, col1x + 55, y + 1.5);
+      y += 8;
+
+      const tC1 = col1x, tW1 = 20, tC2 = col1x+tW1, tW2 = 40, tC3 = col1x+tW1+tW2, tW3 = 40, tC4 = col1x+tW1+tW2+tW3, tW4 = 20;
+      const tRowH = 8, tTotalW = tW1+tW2+tW3+tW4;
+
+      doc.setFillColor(...BLUE);
+      doc.rect(tC1, y, tTotalW, tRowH, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(255,255,255);
+      ['Type','Du','Au','Jours'].forEach((h,i) => doc.text(h, [tC1,tC2,tC3,tC4][i]+2, y+5.5));
+      y += tRowH;
+
+      selections.forEach((sel, idx) => {
+        const mainCode = sel.code;
+        const nbJours  = Object.values(sel.days).filter(c => c === mainCode).length;
+        doc.setFillColor(idx%2===0?255:250, idx%2===0?255:248, idx%2===0?255:245);
+        doc.rect(tC1, y, tTotalW, tRowH, 'F');
+        doc.setDrawColor(220,222,228); doc.setLineWidth(0.2);
+        doc.line(tC1, y+tRowH, tC1+tTotalW, y+tRowH);
+        [tC2,tC3,tC4].forEach(cx => doc.line(cx,y,cx,y+tRowH));
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...BLUE);
+        doc.text(mainCode, tC1+2, y+5.5);
+        doc.setTextColor(30,35,50); doc.setFont('helvetica','normal');
+        doc.text(isoToFR(sel.from), tC2+2, y+5.5);
+        doc.text(sel.from===sel.to?'—':isoToFR(sel.to), tC3+2, y+5.5);
+        doc.setFont('helvetica','bold'); doc.text(nbJours+' j', tC4+2, y+5.5);
+        y += tRowH;
+      });
+      doc.setDrawColor(180,185,200); doc.setLineWidth(0.4);
+      doc.rect(tC1, y-tRowH*selections.length-tRowH, tTotalW, tRowH*(selections.length+1), 'S');
+    }
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(170,170,180);
+    doc.text('Document généré le ' + today + ' par Gestion Parc Réception Roulier', margin, H-10);
+
+    const safeName = (worker.lastName+'-'+worker.firstName+'-'+(worker.matricule||'X'))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9-]/g,'_');
+    fileName  = 'Feuille_Conges_' + safeName + '.pdf';
+    pdfBase64 = doc.output('datauristring').split(',')[1];
+
+    // Sauvegarde locale aussi
+    await _savePDFWithFallback(doc, fileName, state.config.pdfPathConges || '');
+  } catch(e) {
+    console.error('[sendCongesMail] PDF error:', e);
+    toast('Erreur génération PDF', 'error'); return;
+  }
+
+  // 2. Envoyer via le worker Gmail API
+  toast('⏳ Envoi du mail…', 'info');
+  try {
+    const lignes = selections.map(sel => {
+      const mainCode = sel.code;
+      const mainDays = Object.values(sel.days).filter(c => c === mainCode).length;
+      const fromFR = isoToFR(sel.from);
+      const toFR   = isoToFR(sel.to);
+      return sel.from === sel.to
+        ? '  - ' + mainCode + ' : ' + fromFR + ' (' + mainDays + ' j)'
+        : '  - ' + mainCode + ' : ' + fromFR + ' → ' + toFR + ' (' + mainDays + ' j de ' + mainCode + ')';
+    });
+    const subject  = 'Demande de congés — ' + workerName;
+    const bodyText = 'Bonjour,\n\nVeuillez trouver ci-joint la demande de congés pour ' + workerName + ' :\n\n' + lignes.join('\n') + '\n\nCordialement,\nGestion Parc Réception Roulier';
+    const r = await fetch(PLAN_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'sendMail',
+        from: state.config.emailFrom,
+        to:   state.config.emailWeek,
+        cc:   state.config.emailCcWeek  || '',
+        bcc:  state.config.emailBccWeek || '',
+        subject,
+        body: bodyText,
+        attachment: { filename: fileName, content: pdfBase64 }
+      })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      toast('✅ Mail demande de congés envoyé !');
+    } else {
+      toast('Erreur envoi : ' + (data.error || 'inconnue'), 'error');
+    }
+  } catch(e) {
+    toast("Erreur réseau lors de l'envoi", 'error');
+  }
 }
 window.sendCongesMail = sendCongesMail;
 

@@ -1368,30 +1368,121 @@ Gestion Parc Réception Roulier`;
 }
 
 async function sendWeeklyMail() {
-    const wn = getWeekNum(state.weekStart);
-    const subject = 'Planning Hebdo Semaine ' + wn;
-
-    toast('⏳ Génération du PDF en cours…', 'info');
-    try {
-        await generateWeeklyPDF();
-    } catch(e) {
-        toast('Erreur génération PDF', 'error');
-        return;
+    // Vérifications préalables
+    if (!state.config.emailFrom) {
+        toast('Adresse Gmail expéditeur non configurée (Config → Emails)', 'error'); return;
+    }
+    if (!state.config.gmailAuthorized) {
+        toast('Gmail non autorisé — allez dans Config → Emails → Autoriser Gmail', 'error'); return;
+    }
+    if (!state.config.emailWeek) {
+        toast('Adresse destinataire non configurée (Config → Emails)', 'error'); return;
     }
 
-    const body = `Bonjour,\n\nCi-joint l'effectif Parc Roulier pour la Semaine ${wn}.`;
-    const bcc = state.config.emailBccWeek ? `&bcc=${encodeURIComponent(state.config.emailBccWeek)}` : '';
-    const mailtoUrl = `mailto:${encodeURIComponent(state.config.emailWeek)}?cc=${encodeURIComponent(state.config.emailCcWeek || '')}${bcc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const wn = getWeekNum(state.weekStart);
+    const subject = `Planning Hebdomadaire Parc Réception Roulier — Semaine ${wn}`;
 
-    // Ouverture via un lien <a> pour maximiser la compatibilité avec Outlook sur Windows
-    const a = document.createElement('a');
-    a.href = mailtoUrl;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 500);
+    toast('⏳ Génération du PDF en cours…', 'info');
 
-    toast(`📧 "${subject}" — ouverture du client mail…`);
+    // 1. Générer le PDF hebdo et récupérer le base64
+    let pdfBase64, fileName;
+    try {
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) { toast('Erreur: librairie PDF non chargée', 'error'); return; }
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const W = 210, margin = 14;
+        const BLUE = [47, 117, 181];
+
+        // En-tête
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(20);
+        doc.setTextColor(...BLUE);
+        doc.text('TRANSMANUTENTION', margin, 15);
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 20, W - margin, 20);
+
+        const dateFrom = fmtFR(state.weekStart);
+        const dateTo   = fmtFR(addDays(state.weekStart, 6));
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(30, 35, 50);
+        doc.text(`Planning Semaine ${wn}  —  du ${dateFrom} au ${dateTo}`, margin, 29);
+
+        // Rendu des jours
+        let currentY = 36;
+        let hasContent = false;
+        for (const dayIdx of [0,1,2,3,4,5,6]) {
+            const dayDate   = addDays(state.weekStart, dayIdx);
+            const dayISOKey = fmtISO(dayDate);
+            const dayPlan   = (state.planning[weekKey()] || {})[dayISOKey] || {};
+            const hasSections = SECTIONS_ORDER.some(sid => (dayPlan[sid] || []).length > 0);
+            if (!hasSections) continue;
+            hasContent = true;
+
+            if (currentY > 240) { doc.addPage(); currentY = 20; }
+
+            const dayLabel = DAYS[dayIdx] + ' ' + fmtFR(dayDate);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...BLUE);
+            doc.text(dayLabel.toUpperCase(), margin, currentY);
+            currentY += 5;
+            _pdfRenderDay(doc, dayIdx, W, margin, currentY);
+            currentY += 60;
+        }
+
+        if (!hasContent) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setTextColor(120, 130, 145);
+            doc.text('Aucune affectation pour la semaine ' + wn, margin, 50);
+        }
+
+        // Pied de page
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.setTextColor(170, 170, 180);
+        doc.text('Document généré le ' + new Date().toLocaleDateString('fr-FR') + ' par Gestion Parc Réception Roulier', margin, 289);
+
+        fileName  = `Planning_Réception_Semaine${wn}.pdf`;
+        pdfBase64 = doc.output('datauristring').split(',')[1];
+
+        // Sauvegarde locale aussi
+        await _savePDFWithFallback(doc, fileName, state.config.pdfPathWeekly || '');
+    } catch(e) {
+        console.error('[sendWeeklyMail] PDF error:', e);
+        toast('Erreur génération PDF', 'error'); return;
+    }
+
+    // 2. Envoyer via le worker Gmail API
+    toast('⏳ Envoi du mail…', 'info');
+    try {
+        const bodyText = `Bonjour,\n\nCi-joint le planning hebdomadaire Parc Réception Roulier pour la Semaine ${wn}.\n\nCordialement,\nGestion Parc Réception Roulier`;
+        const r = await fetch(PLAN_PROXY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'sendMail',
+                from: state.config.emailFrom,
+                to:   state.config.emailWeek,
+                cc:   state.config.emailCcWeek  || '',
+                bcc:  state.config.emailBccWeek || '',
+                subject,
+                body: bodyText,
+                attachment: { filename: fileName, content: pdfBase64 }
+            })
+        });
+        const data = await r.json();
+        if (data.ok) {
+            toast('✅ Mail hebdomadaire envoyé !');
+        } else {
+            toast('Erreur envoi : ' + (data.error || 'inconnue'), 'error');
+        }
+    } catch(e) {
+        toast("Erreur réseau lors de l'envoi", 'error');
+    }
 }
 
 // ── TYPES DE CONGÉS ──
