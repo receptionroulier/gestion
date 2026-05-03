@@ -170,10 +170,9 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
       const midY  = cy + memberH / 2 + 1.5;
 
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'F');
       doc.setDrawColor(...memberRGB);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'S');
+      doc.setLineWidth(0.6);
+      doc.roundedRect(mLeft, cy, mW, memberH, 1.5, 1.5, 'FD');
 
       const textLeft = mLeft + 5;
 
