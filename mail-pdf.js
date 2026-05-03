@@ -56,21 +56,9 @@ async function _sendViaProxy({ subject, bodyText, fileName, pdfBase64 }) {
 // ═══════════════════════════════════════════════════════════════
 
 async function _savePDFWithFallback(doc, fileName, configuredPath) {
-  // Force le téléchargement sans ouvrir le PDF.
-  // On réencode en octet-stream pour contourner le comportement "ouvrir" de Chrome sur les PDF.
+  // doc.save() de jsPDF force toujours le téléchargement sans ouvrir le PDF.
   const saveName = (configuredPath || '').replace(/\\/g, '/').split('/').pop() || fileName;
-  const pdfBlob  = doc.output('blob');
-  const arrayBuf = await pdfBlob.arrayBuffer();
-  const forceBlob = new Blob([arrayBuf], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(forceBlob);
-  const a   = document.createElement('a');
-  a.href    = url;
-  a.download = saveName;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  doc.save(saveName);
 }
 
 function _toastSaved(configuredPath) {
@@ -131,7 +119,7 @@ function _pdfRenderDay(doc, dayIdx, W, margin, startY) {
     doc.roundedRect(margin, y, cardW, secTitleH, 2, 2, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.setTextColor(40, 40, 50);
+    doc.setTextColor(90, 90, 100);
     doc.text(sec.name.toUpperCase(), margin + 5, y + 5.5);
     y += secTitleH;
 
