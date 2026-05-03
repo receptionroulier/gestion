@@ -1297,12 +1297,13 @@ function buildDaysConge(from, to) {
   return result;
 }
 
-function addSingleDayConge(iso, code) {
+async function addSingleDayConge(iso, code) {
   if (!state.manualConges[_cmWorkerId]) state.manualConges[_cmWorkerId] = {};
   state.manualConges[_cmWorkerId][iso] = code;
   mergeAbsences();
   renderAbsences();
   renderCmCal();
+  await saveCongesRemote();
 }
 
 async function cmDeleteDay(iso) {

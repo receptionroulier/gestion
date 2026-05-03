@@ -671,8 +671,16 @@ async function saveCongesRemote() {
             body: JSON.stringify({ type: 'saveConges', conges: state.manualConges })
         });
         const data = await r.json();
-        if (data.ok) showSyncStatus('saved');
-    } catch(e) { showSyncStatus('offline'); }
+        if (data.ok) {
+            showSyncStatus('saved');
+        } else {
+            showSyncStatus('offline');
+            toast('Erreur sauvegarde congés : ' + (data.error || 'inconnue'), 'error');
+        }
+    } catch(e) {
+        showSyncStatus('offline');
+        toast('Erreur réseau — congés non sauvegardés', 'error');
+    }
 }
 
 // ── LOAD CONGES MANUELS (KV Cloudflare) ──
