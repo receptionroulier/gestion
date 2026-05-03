@@ -468,9 +468,9 @@ async function sendDailyMail(dayIdx) {
   if (!_checkGmailConfig()) return;
   toast('⏳ Génération du PDF…', 'info');
 
-  let fileName, pdfBase64, dateLabelLong;
+  let result, fileName, pdfBase64, dateLabelLong;
   try {
-    const result = await generateDayPDF(dayIdx, false);
+    result = await generateDayPDF(dayIdx, false);
     if (!result) return;
     ({ dateLabelLong, fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
@@ -493,9 +493,9 @@ async function sendWeeklyMail() {
   if (!_checkGmailConfig()) return;
   toast('⏳ Génération du PDF en cours…', 'info');
 
-  let fileName, pdfBase64;
+  let result, fileName, pdfBase64;
   try {
-    const result = await generateWeeklyPDF(false);
+    result = await generateWeeklyPDF(false);
     if (!result) return;
     ({ fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
@@ -519,9 +519,9 @@ async function sendCongesMail(workerId, selections) {
   if (!_checkGmailConfig()) return;
   toast('⏳ Génération de la fiche PDF…', 'info');
 
-  let fileName, pdfBase64;
+  let result, fileName, pdfBase64;
   try {
-    const result = await generateFicheConges(workerId, selections, false);
+    result = await generateFicheConges(workerId, selections, false);
     if (!result) return;
     ({ fileName } = result);
     pdfBase64 = result.doc.output('datauristring').split(',')[1];
