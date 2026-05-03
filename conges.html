@@ -976,7 +976,8 @@ async function initApp() {
     state.absMonth = new Date();
     state.view = 'absences';
     await fetchHolidays();
-    await loadCongesRemote();   // charger les congés manuels KV
+    await loadPlanningRemote();  // charger la config partagée depuis le KV (couleurs, emails, ordre…)
+    await loadCongesRemote();    // charger les congés manuels KV
     await loadMonthData();
     renderAbsences();
 }
